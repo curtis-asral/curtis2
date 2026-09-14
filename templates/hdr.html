@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}RAW → HDR{% endblock %}
+
+{% block content %}
+  <h1 class="title">RAW → HDR</h1>
+  <p class="lede">Upload one or more photos. Each gets fused into a single HDR image from synthetic exposures.</p>
+
+  <div class="panel">
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" data-mode="raw">
+        RAW
+        <span class="tag">.CR2 .NEF .ARW .DNG</span>
+      </button>
+      <button type="button" class="mode-btn" data-mode="jpeg" disabled title="Coming soon">
+        JPEG
+        <span class="tag">coming soon</span>
+      </button>
+    </div>
+
+    <form id="uploadForm">
+      <div class="dropzone" id="dropzone">
+        <p>Drag &amp; drop RAW files here, or click to browse</p>
+        <p class="hint" id="acceptHint">.CR2, .NEF, .ARW, .DNG, .RAF, .ORF — single file or batch</p>
+        <input type="file" id="fileInput" name="files" multiple>
+      </div>
+
+      <div class="filelist" id="fileList"></div>
+
+      <div class="options">
+        <div class="field">
+          <label for="numExposures">Synthetic exposures <span class="val" id="numExposuresVal">5</span></label>
+          <input type="range" id="numExposures" name="num_exposures" min="3" max="9" step="1" value="5">
+        </div>
+        <div class="field">
+          <label for="evRange">EV range (stops) <span class="val" id="evRangeVal">4.0</span></label>
+          <input type="range" id="evRange" name="ev_range" min="1" max="8" step="0.5" value="4.0">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="submitBtn" disabled>Process</button>
+        <span id="status"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel hidden" id="resultsPanel">
+    <div class="results-header">
+      <h2 class="results-title">Results</h2>
+      <button id="downloadAllBtn" class="hidden">Download all (.zip)</button>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const submitBtn = document.getElementById('submitBtn');
+const statusEl = document.getElementById('status');
+const resultsPanel = document.getElementById('resultsPanel');
+const resultsEl = document.getElementById('results');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const numExposures = document.getElementById('numExposures');
+const evRange = document.getElementById('evRange');
+const acceptHint = document.getElementById('acceptHint');
+
+const RAW_EXTENSIONS = ['.cr2', '.nef', '.arw', '.dng', '.raf', '.orf', '.rw2'];
+let currentMode = 'raw';
+let selectedFiles = [];
+
+// Mode toggle (JPEG reserved for a future backend option)
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    acceptHint.textContent = currentMode === 'raw'
+      ? '.CR2, .NEF, .ARW, .DNG, .RAF, .ORF — single file or batch'
+      : '.JPG, .JPEG — single file or batch';
+  });
+});
+
+numExposures.addEventListener('input', () => {
+  document.getElementById('numExposuresVal').textContent = numExposures.value;
+});
+evRange.addEventListener('input', () => {
+  document.getElementById('evRangeVal').textContent = parseFloat(evRange.value).toFixed(1);
+});
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+function extOf(name) {
+  const i = name.lastIndexOf('.');
+  return i === -1 ? '' : name.slice(i).toLowerCase();
+}
+
+function addFiles(fileListInput) {
+  const validExts = currentMode === 'raw' ? RAW_EXTENSIONS : ['.jpg', '.jpeg'];
+  for (const f of fileListInput) {
+    if (!validExts.includes(extOf(f.name))) continue;
+    if (selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) continue;
+    selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function removeFile(index) {
+  selectedFiles.splice(index, 1);
+  renderFileList();
+}
+
+function renderFileList() {
+  fileListEl.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.innerHTML = `
+      <span class="name">${f.name}</span>
+      <span class="size">${(f.size / 1024 / 1024).toFixed(1)} MB</span>
+      <button type="button" class="remove" data-i="${i}">&times;</button>
+    `;
+    row.querySelector('.remove').addEventListener('click', () => removeFile(i));
+    fileListEl.appendChild(row);
+  });
+  submitBtn.disabled = selectedFiles.length === 0;
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (selectedFiles.length === 0) return;
+
+  submitBtn.disabled = true;
+  statusEl.classList.remove('error');
+  statusEl.textContent = `Processing ${selectedFiles.length} file(s)... this can take a while for RAW.`;
+  resultsPanel.classList.add('hidden');
+  resultsEl.innerHTML = '';
+  downloadAllBtn.classList.add('hidden');
+
+  const formData = new FormData();
+  selectedFiles.forEach(f => formData.append('files', f));
+  formData.append('mode', currentMode);
+  formData.append('num_exposures', numExposures.value);
+  formData.append('ev_range', evRange.value);
+
+  try {
+    const res = await fetch('/process', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+    renderResults(data.results);
+    statusEl.textContent = `Done — ${data.results.filter(r => r.ok).length}/${data.results.length} succeeded.`;
+
+    if (data.zip_url) {
+      downloadAllBtn.classList.remove('hidden');
+      downloadAllBtn.onclick = () => window.location.href = data.zip_url;
+    }
+  } catch (err) {
+    statusEl.classList.add('error');
+    statusEl.textContent = `Failed: ${err.message}`;
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+function renderResults(results) {
+  resultsPanel.classList.remove('hidden');
+  results.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'result-card' + (r.ok ? '' : ' failed');
+    if (r.ok) {
+      card.innerHTML = `
+        <img src="${r.preview_url}" alt="${r.name}">
+        <div class="meta">
+          <span class="name">${r.name}</span>
+          <a class="download" href="${r.download_url}" download>Save</a>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="meta">
+          <span class="name">${r.name}</span>
+          <span>Error</span>
+        </div>
+      `;
+    }
+    resultsEl.appendChild(card);
+  });
+}
+</script>
+{% endblock %}

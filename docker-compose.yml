@@ -1,0 +1,24 @@
+services:
+  web:
+    image: curtisasral/homepage:latest
+    container_name: curtis-homepage
+    networks:
+      - appnet
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
+    env_file:
+      - .env
+    command:
+      - tunnel
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}
+      - --url
+      - http://curtis-homepage:5000
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
