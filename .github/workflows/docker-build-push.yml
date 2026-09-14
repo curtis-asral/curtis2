@@ -123,4 +123,5 @@ jobs:
           gcloud compute ssh curtisasral@instance-20260601-180443 \
             --zone=us-central1-a \
             --quiet \
+            --ssh-flag="-o StrictHostKeyChecking=no" \
             --command="/home/curtisasral/homepage/restart.sh"
