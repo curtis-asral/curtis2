@@ -1,0 +1,98 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: curtisasral/homepage:test
+          cache-from: type=gha
+
+      - name: Run container and test
+        run: |
+          # Start the container
+          docker run -d --name test-app -p 5000:5000 curtisasral/homepage:test
+          
+          # Wait for container to be ready
+          sleep 3
+          
+          # Check if container is still running
+          if ! docker ps | grep -q test-app; then
+            echo "Container failed to start"
+            docker logs test-app
+            exit 1
+          fi
+          
+          # Test the index endpoint
+          echo "Testing / endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/)
+          if [ "$response" != "200" ]; then
+            echo "Index endpoint failed with status $response"
+            docker logs test-app
+            docker stop test-app
+            exit 1
+          fi
+          
+          # Test the hdr endpoint
+          echo "Testing /hdr endpoint..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/hdr)
+          if [ "$response" != "200" ]; then
+            echo "HDR endpoint failed with status $response"
+            docker logs test-app
+            docker stop test-app
+            exit 1
+          fi
+          
+          echo "All tests passed!"
+          docker stop test-app
+
+  push-image:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            curtisasral/homepage:latest
+            curtisasral/homepage:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
