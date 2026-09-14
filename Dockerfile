@@ -4,6 +4,14 @@ FROM python:3.12-slim
 # Set a working directory
 WORKDIR /app
 
+# Install system dependencies required by OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 COPY requirements.txt /app/
 RUN python -m pip install --upgrade pip \
