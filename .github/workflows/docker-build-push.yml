@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Push, and Deploy
 
 on:
   push:
@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     
     permissions:
-      id-token: write
       contents: read
     
     steps:
@@ -99,7 +98,13 @@ jobs:
           cache-to: type=gha,mode=max
 
   ssh_to_vm:
+    needs: push-image
     runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

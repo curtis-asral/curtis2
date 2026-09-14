@@ -1,10 +1,16 @@
-# Use Python base image (includes system libraries for OpenCV)
+# Use Python base image
 FROM python:3.12
 
-# Set a working directory
+# Install system dependencies required by OpenCV (libGL and GLib)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Install dependencies
+# Copy requirements and install Python packages
 COPY requirements.txt /app/
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.txt
