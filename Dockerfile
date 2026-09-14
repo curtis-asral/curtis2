@@ -1,18 +1,8 @@
-# Use a lightweight Python base image
-FROM python:3.12-slim
+# Use Python base image (includes system libraries for OpenCV)
+FROM python:3.12
 
 # Set a working directory
 WORKDIR /app
-
-# Install system dependencies required by OpenCV
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY requirements.txt /app/
