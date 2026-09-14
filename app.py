@@ -20,6 +20,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
  
 RAW_EXTENSIONS = {".cr2", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2"}
+JPEG_EXTENSIONS = {".jpg", ".jpeg"}
 MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200 MB total per request; RAW files are big
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
@@ -110,6 +111,41 @@ def process_raw_to_hdr(input_path: Path, output_path: Path, num_exposures: int =
  
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(output_path), result, [cv2.IMWRITE_JPEG_QUALITY, 95])
+
+
+def process_jpeg_to_hdr(input_path: Path, output_path: Path, num_exposures: int = 5, ev_range: float = 4.0) -> None:
+    """
+    Load a JPEG file, generate `num_exposures` synthetic exposures by adjusting exposure,
+    and merge them with Mertens exposure fusion into a single tone-mapped JPEG at output_path.
+ 
+    Raises on any decode/processing failure so the caller can report it
+    per-file without killing the whole batch.
+    """
+    # --- load JPEG (8-bit BGR, already gamma-corrected) ---
+    img_bgr = cv2.imread(str(input_path), cv2.IMREAD_COLOR)
+    if img_bgr is None:
+        raise ValueError(f"Failed to load JPEG: {input_path}")
+ 
+    # Convert to float32 in range [0, 1] for processing
+    img_float = img_bgr.astype(np.float32) / 255.0
+ 
+    # --- generate synthetic exposures by adjusting brightness ---
+    stops = np.linspace(-ev_range / 2, ev_range / 2, num_exposures)
+    exposures_bgr = []
+    for ev in stops:
+        gain = 2.0 ** ev
+        scaled = np.clip(img_float * gain, 0.0, 1.0)
+        frame = (scaled * 255).astype(np.uint8)
+        exposures_bgr.append(frame)
+ 
+    # --- merge with Mertens exposure fusion ---
+    merger = cv2.createMergeMertens()
+    fused = merger.process(exposures_bgr)
+    fused = np.clip(fused, 0.0, 1.0)
+    result = (fused * 255).astype(np.uint8)
+ 
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(output_path), result, [cv2.IMWRITE_JPEG_QUALITY, 95])
  
  
 # ---------------------------------------------------------------------------
@@ -128,13 +164,12 @@ def hdr():
 @app.route("/process", methods=["POST"])
 def process():
     mode = request.form.get("mode", "raw")
-    if mode != "raw":
-        # JPEG mode is reserved for a future implementation.
-        return jsonify({"error": "JPEG mode is not implemented yet"}), 400
+    if mode not in ("raw", "jpeg"):
+        return jsonify({"error": "Invalid mode. Supported modes: raw, jpeg"}), 400
  
     try:
-        num_exposures = int(request.form.get("num_exposures", 5))
-        ev_range = float(request.form.get("ev_range", 4.0))
+        num_exposures = int(request.form.get("num_exposures", 7))
+        ev_range = float(request.form.get("ev_range", 3.0))
     except ValueError:
         return jsonify({"error": "Invalid num_exposures or ev_range"}), 400
     num_exposures = max(3, min(num_exposures, 9))
@@ -155,7 +190,9 @@ def process():
         original_name = f.filename or "unknown"
         ext = Path(original_name).suffix.lower()
  
-        if ext not in RAW_EXTENSIONS:
+        # Validate file type based on mode
+        valid_extensions = RAW_EXTENSIONS if mode == "raw" else JPEG_EXTENSIONS
+        if ext not in valid_extensions:
             results.append({"name": original_name, "ok": False, "error": "unsupported file type"})
             continue
  
@@ -166,7 +203,10 @@ def process():
  
         try:
             f.save(str(input_path))
-            process_raw_to_hdr(input_path, output_path, num_exposures=num_exposures, ev_range=ev_range)
+            if mode == "raw":
+                process_raw_to_hdr(input_path, output_path, num_exposures=num_exposures, ev_range=ev_range)
+            else:  # jpeg
+                process_jpeg_to_hdr(input_path, output_path, num_exposures=num_exposures, ev_range=ev_range)
             results.append({
                 "name": original_name,
                 "ok": True,
@@ -176,7 +216,7 @@ def process():
         except Exception as e:
             results.append({"name": original_name, "ok": False, "error": str(e)})
         finally:
-            # RAW originals can be large; drop them once we're done with them
+            # Clean up uploaded originals
             if input_path.exists():
                 input_path.unlink()
  
