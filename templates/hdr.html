@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}RAW → HDR{% endblock %}
+{% block title %}HDR Tool{% endblock %}
 
 {% block content %}
-  <h1 class="title">RAW → HDR</h1>
+  <h1 class="title">HDR Tool</h1>
   <p class="lede">Upload one or more photos. Each gets fused into a single HDR image from synthetic exposures.</p>
 
   <div class="panel">
@@ -19,10 +19,11 @@
     </div>
 
     <form id="uploadForm">
-      <div class="dropzone" id="dropzone">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-controls="fileInput">
         <p>Drag &amp; drop RAW files here, or click to browse</p>
         <p class="hint" id="acceptHint">.CR2, .NEF, .ARW, .DNG, .RAF, .ORF — single file or batch</p>
-        <input type="file" id="fileInput" name="files" multiple>
+        <label class="file-picker" for="fileInput">Choose photos</label>
+        <input type="file" id="fileInput" name="files" accept="image/jpeg,.jpg,.jpeg,.cr2,.nef,.arw,.dng,.raf,.orf,.rw2" multiple>
       </div>
 
       <div class="filelist" id="fileList"></div>
@@ -72,6 +73,19 @@ const RAW_EXTENSIONS = ['.cr2', '.nef', '.arw', '.dng', '.raf', '.orf', '.rw2'];
 let currentMode = 'raw';
 let selectedFiles = [];
 
+function updateFilePicker() {
+  const isRaw = currentMode === 'raw';
+  fileInput.accept = isRaw
+    ? 'image/jpeg,.jpg,.jpeg,.cr2,.nef,.arw,.dng,.raf,.orf,.rw2'
+    : 'image/jpeg,.jpg,.jpeg';
+  acceptHint.textContent = isRaw
+    ? '.CR2, .NEF, .ARW, .DNG, .RAF, .ORF — single file or batch'
+    : '.JPG, .JPEG — single file or batch';
+  dropzone.querySelector('p').textContent = isRaw
+    ? 'Drag & drop RAW files here, or click to browse'
+    : 'Drag & drop JPEG photos here, or click to browse';
+}
+
 // Mode toggle (JPEG reserved for a future backend option)
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -79,9 +93,9 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentMode = btn.dataset.mode;
-    acceptHint.textContent = currentMode === 'raw'
-      ? '.CR2, .NEF, .ARW, .DNG, .RAF, .ORF — single file or batch'
-      : '.JPG, .JPEG — single file or batch';
+    selectedFiles = [];
+    renderFileList();
+    updateFilePicker();
   });
 });
 
@@ -92,7 +106,15 @@ evRange.addEventListener('input', () => {
   document.getElementById('evRangeVal').textContent = parseFloat(evRange.value).toFixed(1);
 });
 
-dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('click', e => {
+  if (e.target !== fileInput && !e.target.closest('.file-picker')) fileInput.click();
+});
+dropzone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    fileInput.click();
+  }
+});
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
 dropzone.addEventListener('drop', e => {
@@ -100,7 +122,11 @@ dropzone.addEventListener('drop', e => {
   dropzone.classList.remove('dragover');
   addFiles(e.dataTransfer.files);
 });
-fileInput.addEventListener('change', () => addFiles(fileInput.files));
+fileInput.addEventListener('change', () => {
+  addFiles(fileInput.files);
+  // Allow choosing the same photo again after removing it.
+  fileInput.value = '';
+});
 
 function extOf(name) {
   const i = name.lastIndexOf('.');
@@ -108,8 +134,13 @@ function extOf(name) {
 }
 
 function addFiles(fileListInput) {
+  const incomingFiles = Array.from(fileListInput);
+  const allJpeg = incomingFiles.length > 0 && incomingFiles.every(f => ['.jpg', '.jpeg'].includes(extOf(f.name)));
+  if (currentMode === 'raw' && selectedFiles.length === 0 && allJpeg) {
+    document.querySelector('[data-mode="jpeg"]').click();
+  }
   const validExts = currentMode === 'raw' ? RAW_EXTENSIONS : ['.jpg', '.jpeg'];
-  for (const f of fileListInput) {
+  for (const f of incomingFiles) {
     if (!validExts.includes(extOf(f.name))) continue;
     if (selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) continue;
     selectedFiles.push(f);
