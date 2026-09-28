@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}100 Days Checklist{% endblock %}
+
+{% block extra_head %}
+<link rel="manifest" href="{{ url_for('static', filename='manifest-checklist.json') }}">
+{% endblock %}
+
+{% block content %}
+<main class="checklist-app" id="checklistApp" aria-busy="true">
+  <header class="checklist-heading">
+    <div>
+      <p class="checklist-kicker">100 DAY PRACTICE</p>
+      <h1 class="title">Daily checklist</h1>
+    </div>
+    <div class="campaign-progress" aria-live="polite">
+      <span id="completedDays">0</span><span class="campaign-total"> / 100 days complete</span>
+    </div>
+  </header>
+
+  <section class="day-panel" aria-labelledby="dayHeading">
+    <div class="day-toolbar">
+      <button type="button" class="day-nav" id="previousDay" aria-label="Previous day">&larr;</button>
+      <div class="day-title-wrap">
+        <p class="day-index" id="dayHeading">DAY <span id="dayNumber">1</span> <span class="day-total">/ 100</span></p>
+        <time class="day-date" id="dayDate"></time>
+      </div>
+      <button type="button" class="day-nav" id="nextDay" aria-label="Next day">&rarr;</button>
+    </div>
+
+    <div class="daily-items" id="dailyItems" aria-label="Daily checklist items"></div>
+
+    <div class="notes-area">
+      <label for="dayNotes">Notes</label>
+      <textarea id="dayNotes" rows="4" maxlength="20000" placeholder="A thought, reflection, or reminder for today..."></textarea>
+      <span class="save-status" id="saveStatus" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="tracker-section" aria-label="Tracker views">
+    <div class="tracker-tabs" role="tablist" aria-label="Progress view">
+      <button type="button" class="tracker-tab active" id="calendarTab" role="tab" aria-selected="true" aria-controls="calendarView">Calendar</button>
+      <button type="button" class="tracker-tab" id="progressTab" role="tab" aria-selected="false" aria-controls="progressView">Progress</button>
+    </div>
+
+    <div class="tracker-view" id="calendarView" role="tabpanel" aria-labelledby="calendarTab">
+      <div class="calendar-toolbar">
+        <button type="button" class="calendar-nav" id="previousMonth" aria-label="Previous month">&larr;</button>
+        <h2 id="calendarMonth"></h2>
+        <button type="button" class="calendar-nav" id="nextMonth" aria-label="Next month">&rarr;</button>
+      </div>
+      <div class="calendar-grid" id="calendarGrid" aria-label="Calendar"></div>
+      <div class="tracker-legend"><span class="legend-mark complete"></span> All complete <span class="legend-mark partial"></span> In progress</div>
+    </div>
+
+    <div class="tracker-view hidden" id="progressView" role="tabpanel" aria-labelledby="progressTab" hidden>
+      <div class="progress-heading"><h2>100-day progress</h2><span id="checkedCount"></span></div>
+      <div class="progress-grid" id="progressGrid" aria-label="Select a day"></div>
+    </div>
+  </section>
+  <p class="checklist-error" id="checklistError" role="alert" hidden></p>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const app = document.getElementById('checklistApp');
+const checklistError = document.getElementById('checklistError');
+const itemLabels = [
+  ['exercise', 'Exercise'],
+  ['eat-less', 'Eat less'],
+  ['read', 'Read']
+];
+let tracker = {};
+let selectedDay = 1;
+let visibleMonth;
+let saveQueue = Promise.resolve();
+let notesTimer;
+
+function dayKey(dayNumber) {
+  return `day-${dayNumber}`;
+}
+
+function dayCompletion(day) {
+  return itemLabels.filter(([key]) => day[key] === true).length;
+}
+
+function formatDate(dateString, options) {
+  return new Date(`${dateString}T12:00:00`).toLocaleDateString(undefined, options);
+}
+
+function setSelectedDay(dayNumber) {
+  selectedDay = dayNumber;
+  renderDay();
+  renderCalendar();
+  renderProgress();
+}
+
+function renderDay() {
+  const day = tracker[dayKey(selectedDay)];
+  document.getElementById('dayNumber').textContent = selectedDay;
+  const date = document.getElementById('dayDate');
+  date.dateTime = day.date;
+  date.textContent = formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  document.getElementById('previousDay').disabled = selectedDay <= 1;
+  document.getElementById('nextDay').disabled = selectedDay >= 100;
+
+  const items = document.getElementById('dailyItems');
+  items.replaceChildren();
+  for (const [key, label] of itemLabels) {
+    const row = document.createElement('label');
+    row.className = `checklist-item${day[key] ? ' checked' : ''}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = day[key] === true;
+    checkbox.setAttribute('aria-label', label);
+    checkbox.addEventListener('change', () => {
+      row.classList.toggle('checked', checkbox.checked);
+      updateField(selectedDay, key, checkbox.checked);
+    });
+    const mark = document.createElement('span');
+    mark.className = 'checkmark';
+    const text = document.createElement('span');
+    text.className = 'checklist-label';
+    text.textContent = label;
+    row.append(checkbox, mark, text);
+    items.appendChild(row);
+  }
+  document.getElementById('dayNotes').value = day.notes || '';
+  setSaveStatus('');
+}
+
+function renderCalendar() {
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
+  document.getElementById('calendarMonth').textContent = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const grid = document.getElementById('calendarGrid');
+  grid.replaceChildren();
+  for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+    const heading = document.createElement('span');
+    heading.className = 'calendar-weekday';
+    heading.textContent = label;
+    grid.appendChild(heading);
+  }
+
+  const firstDate = new Date(year, month, 1);
+  const offset = (firstDate.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let i = 0; i < offset; i += 1) {
+    const blank = document.createElement('span');
+    blank.className = 'calendar-blank';
+    grid.appendChild(blank);
+  }
+  for (let date = 1; date <= daysInMonth; date += 1) {
+    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+    const matchingDay = Object.entries(tracker).find(([, value]) => value.date === dateString);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'calendar-day';
+    button.textContent = date;
+    if (matchingDay) {
+      const number = Number(matchingDay[0].slice(4));
+      const count = dayCompletion(matchingDay[1]);
+      button.classList.add(count === 3 ? 'complete' : count > 0 ? 'partial' : 'incomplete');
+      button.setAttribute('aria-label', `${formatDate(dateString, { month: 'long', day: 'numeric' })}, day ${number}, ${count} of 3 complete`);
+      button.setAttribute('aria-pressed', String(number === selectedDay));
+      if (number === selectedDay) button.classList.add('selected');
+      button.addEventListener('click', () => setSelectedDay(number));
+    } else {
+      button.disabled = true;
+      button.setAttribute('aria-hidden', 'true');
+    }
+    grid.appendChild(button);
+  }
+}
+
+function renderProgress() {
+  const grid = document.getElementById('progressGrid');
+  grid.replaceChildren();
+  let completedDays = 0;
+  let checkedItems = 0;
+  for (let number = 1; number <= 100; number += 1) {
+    const day = tracker[dayKey(number)];
+    const count = dayCompletion(day);
+    checkedItems += count;
+    if (count === 3) completedDays += 1;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `progress-day${count === 3 ? ' complete' : count > 0 ? ' partial' : ''}${number === selectedDay ? ' selected' : ''}`;
+    button.textContent = number;
+    button.setAttribute('aria-label', `Day ${number}, ${count} of 3 complete`);
+    button.setAttribute('aria-pressed', String(number === selectedDay));
+    button.addEventListener('click', () => setSelectedDay(number));
+    grid.appendChild(button);
+  }
+  document.getElementById('completedDays').textContent = completedDays;
+  document.getElementById('checkedCount').textContent = `${checkedItems} / 300 items`;
+}
+
+function setSaveStatus(message, isError = false) {
+  const status = document.getElementById('saveStatus');
+  status.textContent = message;
+  status.classList.toggle('error', isError);
+}
+
+function updateField(dayNumber, field, value) {
+  const day = tracker[dayKey(dayNumber)];
+  day[field] = value;
+  renderCalendar();
+  renderProgress();
+  setSaveStatus('Saving...');
+  saveQueue = saveQueue.then(async () => {
+    const response = await fetch(`/api/checklist/${dayNumber}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value })
+    });
+    if (!response.ok) throw new Error('Could not save this change.');
+  }).then(() => setSaveStatus('Saved')).catch(error => {
+    setSaveStatus(error.message, true);
+  });
+}
+
+function saveNotes() {
+  clearTimeout(notesTimer);
+  const dayNumber = selectedDay;
+  const notes = document.getElementById('dayNotes').value;
+  tracker[dayKey(dayNumber)].notes = notes;
+  setSaveStatus('Saving...');
+  saveQueue = saveQueue.then(async () => {
+    const response = await fetch(`/api/checklist/${dayNumber}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    });
+    if (!response.ok) throw new Error('Could not save these notes.');
+  }).then(() => {
+    if (selectedDay === dayNumber) setSaveStatus('Saved');
+  }).catch(error => setSaveStatus(error.message, true));
+}
+
+async function initializeChecklist() {
+  try {
+    const response = await fetch('/api/checklist');
+    if (!response.ok) throw new Error('Could not load the checklist.');
+    tracker = await response.json();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const matching = Object.entries(tracker).find(([, day]) => day.date === today);
+    const upcoming = Object.entries(tracker).find(([, day]) => day.date > today);
+    selectedDay = matching ? Number(matching[0].slice(4)) : upcoming ? Number(upcoming[0].slice(4)) : 100;
+    const selectedDate = new Date(`${tracker[dayKey(selectedDay)].date}T12:00:00`);
+    visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    renderDay();
+    renderCalendar();
+    renderProgress();
+    app.setAttribute('aria-busy', 'false');
+  } catch (error) {
+    checklistError.textContent = error.message;
+    checklistError.hidden = false;
+  }
+}
+
+document.getElementById('previousDay').addEventListener('click', () => setSelectedDay(selectedDay - 1));
+document.getElementById('nextDay').addEventListener('click', () => setSelectedDay(selectedDay + 1));
+document.getElementById('dayNotes').addEventListener('input', () => {
+  setSaveStatus('Unsaved');
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(saveNotes, 600);
+});
+document.getElementById('dayNotes').addEventListener('blur', saveNotes);
+document.getElementById('previousMonth').addEventListener('click', () => {
+  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+  renderCalendar();
+});
+
+for (const [tabId, viewId] of [['calendarTab', 'calendarView'], ['progressTab', 'progressView']]) {
+  document.getElementById(tabId).addEventListener('click', () => {
+    for (const [otherTabId, otherViewId] of [['calendarTab', 'calendarView'], ['progressTab', 'progressView']]) {
+      const active = tabId === otherTabId;
+      document.getElementById(otherTabId).classList.toggle('active', active);
+      document.getElementById(otherTabId).setAttribute('aria-selected', String(active));
+      document.getElementById(otherViewId).hidden = !active;
+      document.getElementById(otherViewId).classList.toggle('hidden', !active);
+    }
+  });
+}
+
+initializeChecklist();
+</script>
+{% endblock %}

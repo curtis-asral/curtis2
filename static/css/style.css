@@ -414,3 +414,426 @@ button.primary:disabled {
 .hidden {
     display: none !important;
 }
+
+/* ---------- 100-day checklist ---------- */
+
+.page:has(.checklist-app) {
+    max-width: 920px;
+}
+
+.checklist-app {
+    --check-accent: #a9ecc9;
+    --check-accent-ink: #10251b;
+}
+
+.checklist-heading,
+.day-toolbar,
+.calendar-toolbar,
+.progress-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.checklist-heading {
+    gap: 20px;
+    margin-bottom: 28px;
+}
+
+.checklist-kicker {
+    color: var(--accent-mint);
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.checklist-heading .title {
+    margin-bottom: 0;
+}
+
+.campaign-progress {
+    font-size: 0.9rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.campaign-total,
+.day-total {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.day-panel {
+    padding: 26px 0 30px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.day-toolbar {
+    margin-bottom: 24px;
+}
+
+.day-title-wrap {
+    text-align: center;
+}
+
+.day-index {
+    font-size: 1.12rem;
+    font-weight: 700;
+}
+
+.day-date {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.day-nav,
+.calendar-nav {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.day-nav:hover:not(:disabled),
+.calendar-nav:hover {
+    border-color: var(--accent-mint);
+    color: var(--accent-mint);
+}
+
+.day-nav:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.daily-items {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.checklist-item {
+    position: relative;
+    display: flex;
+    min-height: 64px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.checklist-item:hover,
+.checklist-item.checked {
+    border-color: var(--accent-mint);
+    background: color-mix(in srgb, var(--accent-mint) 8%, var(--surface));
+}
+
+.checklist-item input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.checkmark {
+    display: grid;
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+}
+
+.checklist-item.checked .checkmark {
+    border-color: var(--check-accent);
+    background: var(--check-accent);
+}
+
+.checklist-item.checked .checkmark::after {
+    content: "";
+    width: 6px;
+    height: 11px;
+    border: solid var(--check-accent-ink);
+    border-width: 0 2px 2px 0;
+    transform: translateY(-1px) rotate(45deg);
+}
+
+.checklist-item:focus-within .checkmark {
+    outline: 2px solid var(--accent-lavender);
+    outline-offset: 2px;
+}
+
+.checklist-label {
+    font-size: 0.9rem;
+    font-weight: 550;
+}
+
+.checklist-item.checked .checklist-label {
+    color: var(--muted);
+}
+
+.notes-area {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 16px;
+    margin-top: 26px;
+}
+
+.notes-area label {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.notes-area textarea {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 104px;
+    resize: vertical;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.875rem;
+}
+
+.notes-area textarea:focus {
+    border-color: var(--accent-lavender);
+    outline: 2px solid var(--accent-lavender);
+    outline-offset: 1px;
+}
+
+.notes-area textarea::placeholder {
+    color: var(--muted);
+}
+
+.save-status {
+    min-height: 1.2em;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: right;
+}
+
+.save-status.error,
+.checklist-error {
+    color: var(--accent-rose);
+}
+
+.tracker-section {
+    margin-top: 30px;
+}
+
+.tracker-tabs {
+    display: flex;
+    width: fit-content;
+    gap: 22px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tracker-tab {
+    position: relative;
+    padding: 0 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.tracker-tab.active {
+    color: var(--text);
+    font-weight: 650;
+}
+
+.tracker-tab.active::after {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    background: var(--accent-mint);
+    content: "";
+}
+
+.tracker-view {
+    padding-top: 20px;
+}
+
+.calendar-toolbar {
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.calendar-toolbar h2,
+.progress-heading h2 {
+    font-size: 0.95rem;
+    font-weight: 650;
+}
+
+.calendar-nav {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.calendar-weekday,
+.calendar-blank,
+.calendar-day {
+    display: grid;
+    aspect-ratio: 1;
+    place-items: center;
+}
+
+.calendar-weekday {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.calendar-day {
+    width: 100%;
+    max-width: 48px;
+    justify-self: center;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.calendar-day.incomplete {
+    color: var(--muted);
+}
+
+.calendar-day.partial {
+    border-color: var(--accent-lavender);
+}
+
+.calendar-day.complete {
+    background: var(--accent-mint);
+    color: var(--check-accent-ink);
+}
+
+.calendar-day.selected {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
+.calendar-day:disabled {
+    cursor: default;
+}
+
+.tracker-legend {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.legend-mark {
+    width: 10px;
+    height: 10px;
+    margin-left: 8px;
+    border: 1px solid var(--accent-lavender);
+    border-radius: 50%;
+}
+
+.legend-mark.complete {
+    border-color: var(--accent-mint);
+    background: var(--accent-mint);
+}
+
+.progress-heading {
+    margin-bottom: 14px;
+}
+
+.progress-heading span {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.progress-grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.progress-day {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.progress-day.partial {
+    border-color: var(--accent-lavender);
+    color: var(--text);
+}
+
+.progress-day.complete {
+    border-color: var(--accent-mint);
+    background: var(--accent-mint);
+    color: var(--check-accent-ink);
+}
+
+.progress-day.selected {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
+.checklist-error {
+    margin-top: 18px;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 620px) {
+    .checklist-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .daily-items {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .checklist-item {
+        min-height: 56px;
+    }
+
+    .progress-grid {
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 6px;
+    }
+}

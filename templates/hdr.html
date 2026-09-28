@@ -2,6 +2,10 @@
 
 {% block title %}HDR Tool{% endblock %}
 
+{% block extra_head %}
+<link rel="manifest" href="{{ url_for('static', filename='manifest-hdr.json') }}">
+{% endblock %}
+
 {% block content %}
   <h1 class="title">HDR Tool</h1>
   <p class="lede">Upload one or more photos. Each gets fused into a single HDR image from synthetic exposures.</p>

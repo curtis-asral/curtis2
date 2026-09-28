@@ -25,6 +25,7 @@ MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200 MB total per request; RAW files ar
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
+TRACKER_PATH = BASE_DIR / "static" / "100_days_tracker.json"
 CLEANUP_THRESHOLD = 24 * 3600  # 24 hours in seconds
 
 
@@ -159,6 +160,57 @@ def index():
 def hdr():
     cleanup_old_batches()
     return render_template("hdr.html")
+
+
+@app.route("/checklist")
+def checklist():
+    return render_template("checklist.html")
+
+
+@app.route("/api/checklist", methods=["GET"])
+def get_checklist():
+    try:
+        with open(TRACKER_PATH, "r") as tracker_file:
+            return jsonify(json.load(tracker_file))
+    except (OSError, json.JSONDecodeError):
+        return jsonify({"error": "Unable to load checklist data"}), 500
+
+
+@app.route("/api/checklist/<int:day_number>", methods=["PATCH"])
+def update_checklist_day(day_number):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or len(payload) != 1:
+        return jsonify({"error": "Provide one checklist field to update"}), 400
+
+    field, value = next(iter(payload.items()))
+    if field not in {"exercise", "eat-less", "read"} and field != "notes":
+        return jsonify({"error": "Invalid checklist field"}), 400
+    if field == "notes":
+        if not isinstance(value, str) or len(value) > 20000:
+            return jsonify({"error": "Notes must be text under 20,000 characters"}), 400
+    elif not isinstance(value, bool):
+        return jsonify({"error": "Checklist items must be true or false"}), 400
+
+    try:
+        with open(TRACKER_PATH, "r") as tracker_file:
+            tracker = json.load(tracker_file)
+    except (OSError, json.JSONDecodeError):
+        return jsonify({"error": "Unable to load checklist data"}), 500
+
+    day_key = f"day-{day_number}"
+    if day_key not in tracker:
+        return jsonify({"error": "Day not found"}), 404
+
+    tracker[day_key][field] = value
+    temporary_path = TRACKER_PATH.with_suffix(".tmp")
+    try:
+        with open(temporary_path, "w") as tracker_file:
+            json.dump(tracker, tracker_file, indent=2)
+        temporary_path.replace(TRACKER_PATH)
+    except OSError:
+        return jsonify({"error": "Unable to save checklist data"}), 500
+
+    return jsonify({"day": tracker[day_key]})
  
  
 @app.route("/process", methods=["POST"])
