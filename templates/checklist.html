@@ -2,6 +2,14 @@
 
 {% block title %}100 Days Checklist{% endblock %}
 
+{% block apple_touch_icon %}
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='checklist-192.png') }}">
+{% endblock %}
+
+{% block apple_mobile_web_app_title %}
+<meta name="apple-mobile-web-app-title" content="Checklist">
+{% endblock %}
+
 {% block extra_head %}
 <link rel="manifest" href="{{ url_for('static', filename='manifest-checklist.json') }}">
 {% endblock %}
@@ -10,7 +18,7 @@
 <main class="checklist-app" id="checklistApp" aria-busy="true">
   <header class="checklist-heading">
     <div>
-      <p class="checklist-kicker">100 DAY PRACTICE</p>
+      <p class="checklist-kicker">100 DAYS</p>
       <h1 class="title">Daily checklist</h1>
     </div>
     <div class="campaign-progress" aria-live="polite">

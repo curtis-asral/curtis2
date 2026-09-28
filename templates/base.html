@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Curtis Asral{% endblock %}</title>
 <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+{% block apple_touch_icon %}
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='hdr.ico') }}">
+{% endblock %}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+{% block apple_mobile_web_app_title %}
 <meta name="apple-mobile-web-app-title" content="HDR Tool">
+{% endblock %}
 <meta name="theme-color" content="#0a0a0c">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 {% block extra_head %}{% endblock %}
