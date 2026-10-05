@@ -772,6 +772,39 @@ button.primary:disabled {
     margin-bottom: 14px;
 }
 
+.progress-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.progress-metric {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+}
+
+.progress-metric:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.progress-metric-label {
+    min-height: 2.2em;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.progress-metric-value {
+    font-size: 0.95rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
 .progress-heading span {
     color: var(--muted);
     font-size: 0.75rem;
@@ -816,6 +849,63 @@ button.primary:disabled {
     font-size: 0.875rem;
 }
 
+.checklist-login {
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.checklist-login .checklist-kicker {
+    color: var(--accent-mint);
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.checklist-login-form {
+    display: grid;
+    gap: 12px;
+    margin-top: 24px;
+    padding: 24px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.checklist-login-form label {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.checklist-login-form input {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.checklist-login-form button {
+    min-height: 48px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent-mint);
+    color: #10251b;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.checklist-login-form button:hover {
+    filter: brightness(1.08);
+}
+
+.checklist-login-error {
+    color: var(--accent-rose);
+    font-size: 0.875rem;
+}
+
 @media (max-width: 620px) {
     .checklist-heading {
         align-items: flex-start;
@@ -835,5 +925,15 @@ button.primary:disabled {
     .progress-grid {
         grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 6px;
+    }
+
+    .progress-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 14px;
+    }
+
+    .progress-metric:nth-child(odd) {
+        padding-left: 0;
+        border-left: 0;
     }
 }

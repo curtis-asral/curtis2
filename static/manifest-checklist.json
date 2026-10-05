@@ -3,7 +3,7 @@
   "name": "Checklist",
   "short_name": "Checklist",
   "start_url": "/checklist",
-  "scope": "/checklist/",
+  "scope": "/checklist",
   "display": "standalone",
   "background_color": "#0a0a0c",
   "theme_color": "#0a0a0c",

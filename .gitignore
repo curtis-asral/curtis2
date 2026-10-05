@@ -46,8 +46,11 @@ venv.bak/
 # Project specific
 uploads/
 outputs/
+data/
 *.jpg
 *.jpeg
 *.png
 *.gif
 *.zip
+
+test_*

@@ -2,6 +2,10 @@ services:
   web:
     image: curtisasral/homepage:latest
     container_name: curtis-homepage
+    environment:
+      CHECKLIST_PASSWORD: "${CHECKLIST_PASSWORD:?Set CHECKLIST_PASSWORD in .env}"
+      CHECKLIST_COOKIE_SECRET: "${CHECKLIST_COOKIE_SECRET:?Set CHECKLIST_COOKIE_SECRET in .env}"
+      CHECKLIST_COOKIE_SECURE: "true"
     networks:
       - appnet
 

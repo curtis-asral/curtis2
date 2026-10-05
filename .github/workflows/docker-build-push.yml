@@ -124,4 +124,4 @@ jobs:
             --zone=us-central1-a \
             --quiet \
             --ssh-flag="-o StrictHostKeyChecking=no" \
-            --command="/home/curtisasral/homepage/restart.sh"
+            --command="cd /home/curtisasral/homepage && mkdir -p data && if [ ! -f data/100_days_tracker.json ]; then if docker inspect curtis-homepage >/dev/null 2>&1; then docker cp curtis-homepage:/app/static/100_days_tracker.json data/100_days_tracker.json || exit 1; else cp static/100_days_tracker.json data/100_days_tracker.json; fi; fi && /home/curtisasral/homepage/restart.sh"

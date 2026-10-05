@@ -22,7 +22,7 @@
       <h1 class="title">Daily checklist</h1>
     </div>
     <div class="campaign-progress" aria-live="polite">
-      <span id="completedDays">0</span><span class="campaign-total"> / 100 days complete</span>
+      <span id="completedDays">0</span><span class="campaign-total">/100 days complete</span>
     </div>
   </header>
 
@@ -63,6 +63,7 @@
 
     <div class="tracker-view hidden" id="progressView" role="tabpanel" aria-labelledby="progressTab" hidden>
       <div class="progress-heading"><h2>100-day progress</h2><span id="checkedCount"></span></div>
+      <div class="progress-metrics" id="progressMetrics" aria-label="Completed days by habit"></div>
       <div class="progress-grid" id="progressGrid" aria-label="Select a day"></div>
     </div>
   </section>
@@ -93,12 +94,42 @@ function dayCompletion(day) {
   return itemLabels.filter(([key]) => day[key] === true).length;
 }
 
+function maxDayNumber() {
+  return Object.keys(tracker).reduce((maximum, key) => {
+    const match = /^day-(\d+)$/.exec(key);
+    return match ? Math.max(maximum, Number(match[1])) : maximum;
+  }, 0);
+}
+
+function addOneDay(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  date.setDate(date.getDate() + 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function ensureLocalDay(dayNumber) {
+  let lastDay = maxDayNumber();
+  while (lastDay < dayNumber) {
+    const previous = tracker[dayKey(lastDay)];
+    tracker[dayKey(lastDay + 1)] = {
+      date: addOneDay(previous.date),
+      exercise: false,
+      'eat-less': false,
+      read: false
+    };
+    lastDay += 1;
+  }
+}
+
 function formatDate(dateString, options) {
   return new Date(`${dateString}T12:00:00`).toLocaleDateString(undefined, options);
 }
 
 function setSelectedDay(dayNumber) {
+  ensureLocalDay(dayNumber);
   selectedDay = dayNumber;
+  const selectedDate = new Date(`${tracker[dayKey(selectedDay)].date}T12:00:00`);
+  visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
   renderDay();
   renderCalendar();
   renderProgress();
@@ -111,7 +142,7 @@ function renderDay() {
   date.dateTime = day.date;
   date.textContent = formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   document.getElementById('previousDay').disabled = selectedDay <= 1;
-  document.getElementById('nextDay').disabled = selectedDay >= 100;
+  document.getElementById('nextDay').disabled = false;
 
   const items = document.getElementById('dailyItems');
   items.replaceChildren();
@@ -185,13 +216,18 @@ function renderCalendar() {
 function renderProgress() {
   const grid = document.getElementById('progressGrid');
   grid.replaceChildren();
+  const totals = Object.fromEntries(itemLabels.map(([key]) => [key, 0]));
   let completedDays = 0;
   let checkedItems = 0;
-  for (let number = 1; number <= 100; number += 1) {
+  const totalDays = Math.max(100, maxDayNumber());
+  for (let number = 1; number <= totalDays; number += 1) {
     const day = tracker[dayKey(number)];
     const count = dayCompletion(day);
     checkedItems += count;
     if (count === 3) completedDays += 1;
+    for (const [key] of itemLabels) {
+      if (day[key] === true) totals[key] += 1;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `progress-day${count === 3 ? ' complete' : count > 0 ? ' partial' : ''}${number === selectedDay ? ' selected' : ''}`;
@@ -201,8 +237,26 @@ function renderProgress() {
     button.addEventListener('click', () => setSelectedDay(number));
     grid.appendChild(button);
   }
-  document.getElementById('completedDays').textContent = completedDays;
-  document.getElementById('checkedCount').textContent = `${checkedItems} / 300 items`;
+  const metrics = document.getElementById('progressMetrics');
+  metrics.replaceChildren();
+  const metricValues = [
+    ...itemLabels.map(([key, label]) => [label, totals[key]]),
+    ['All three in one day', completedDays]
+  ];
+  for (const [label, value] of metricValues) {
+    const metric = document.createElement('div');
+    metric.className = 'progress-metric';
+    const metricLabel = document.createElement('span');
+    metricLabel.className = 'progress-metric-label';
+    metricLabel.textContent = label;
+    const metricValue = document.createElement('span');
+    metricValue.className = 'progress-metric-value';
+    metricValue.textContent = `${value} / 100`;
+    metric.append(metricLabel, metricValue);
+    metrics.appendChild(metric);
+  }
+  document.getElementById('completedDays').textContent = Math.min(...Object.values(totals));
+  document.getElementById('checkedCount').textContent = `${checkedItems} total check-ins`;
 }
 
 function setSaveStatus(message, isError = false) {
@@ -256,7 +310,7 @@ async function initializeChecklist() {
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const matching = Object.entries(tracker).find(([, day]) => day.date === today);
     const upcoming = Object.entries(tracker).find(([, day]) => day.date > today);
-    selectedDay = matching ? Number(matching[0].slice(4)) : upcoming ? Number(upcoming[0].slice(4)) : 100;
+    selectedDay = matching ? Number(matching[0].slice(4)) : upcoming ? Number(upcoming[0].slice(4)) : maxDayNumber();
     const selectedDate = new Date(`${tracker[dayKey(selectedDay)].date}T12:00:00`);
     visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     renderDay();

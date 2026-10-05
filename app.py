@@ -1,18 +1,25 @@
 import json
+import hmac
 import os
 import shutil
 import time
 import uuid
+import secrets
 import zipfile
+from datetime import date, timedelta
 from pathlib import Path
  
 import cv2
 import numpy as np
 import rawpy
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
+from itsdangerous import BadSignature, URLSafeTimedSerializer
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
  
 app = Flask(__name__)
- 
+
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
@@ -23,10 +30,36 @@ RAW_EXTENSIONS = {".cr2", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2"}
 JPEG_EXTENSIONS = {".jpg", ".jpeg"}
 MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200 MB total per request; RAW files are big
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
+app.config["CHECKLIST_PASSWORD"] = os.environ.get("CHECKLIST_PASSWORD")
+app.config["CHECKLIST_COOKIE_SECRET"] = os.environ.get("CHECKLIST_COOKIE_SECRET")
+app.config["CHECKLIST_COOKIE_SECURE"] = os.environ.get("CHECKLIST_COOKIE_SECURE", "true").lower() in {"1", "true", "yes"}
 
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
 TRACKER_PATH = BASE_DIR / "static" / "100_days_tracker.json"
 CLEANUP_THRESHOLD = 24 * 3600  # 24 hours in seconds
+CHECKLIST_COOKIE_NAME = "checklist_device"
+CHECKLIST_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60
+
+
+def checklist_auth_configured():
+    return bool(app.config["CHECKLIST_PASSWORD"] and app.config["CHECKLIST_COOKIE_SECRET"])
+
+
+def checklist_token_serializer():
+    return URLSafeTimedSerializer(app.config["CHECKLIST_COOKIE_SECRET"], salt="checklist-device-v1")
+
+
+def checklist_device_authorized():
+    token = request.cookies.get(CHECKLIST_COOKIE_NAME)
+    if not token or not checklist_auth_configured():
+        return False
+
+    try:
+        payload = checklist_token_serializer().loads(token, max_age=CHECKLIST_COOKIE_MAX_AGE)
+    except BadSignature:
+        return False
+
+    return isinstance(payload, dict) and payload.get("authorized") is True and isinstance(payload.get("device_id"), str)
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +195,63 @@ def hdr():
     return render_template("hdr.html")
 
 
-@app.route("/checklist")
+@app.before_request
+def require_checklist_api_auth():
+    if (
+        request.path == "/api/checklist"
+        or request.path.startswith("/api/checklist/")
+        or request.path == "/static/100_days_tracker.json"
+    ):
+        if not checklist_auth_configured():
+            return jsonify({"error": "Checklist access is not configured"}), 503
+        if not checklist_device_authorized():
+            return jsonify({"error": "Checklist login required"}), 401
+
+
+@app.after_request
+def prevent_checklist_caching(response):
+    if (
+        request.path == "/checklist"
+        or request.path.startswith("/api/checklist")
+        or request.path == "/static/100_days_tracker.json"
+    ):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/checklist", methods=["GET", "POST"])
 def checklist():
-    return render_template("checklist.html")
+    if not checklist_auth_configured():
+        return render_template("checklist_login.html", setup_error=True), 503
+
+    if checklist_device_authorized():
+        return render_template("checklist.html")
+
+    if request.method == "POST":
+        submitted_password = request.form.get("password", "")
+        if hmac.compare_digest(
+            submitted_password.encode("utf-8"),
+            app.config["CHECKLIST_PASSWORD"].encode("utf-8"),
+        ):
+            token = checklist_token_serializer().dumps({
+                "authorized": True,
+                "device_id": secrets.token_urlsafe(32),
+            })
+            response = redirect(url_for("checklist"))
+            response.set_cookie(
+                CHECKLIST_COOKIE_NAME,
+                token,
+                max_age=CHECKLIST_COOKIE_MAX_AGE,
+                secure=app.config["CHECKLIST_COOKIE_SECURE"],
+                httponly=True,
+                samesite="Lax",
+                path="/",
+            )
+            return response
+
+        return render_template("checklist_login.html", login_error=True), 401
+
+    return render_template("checklist_login.html")
 
 
 @app.route("/api/checklist", methods=["GET"])
@@ -199,7 +286,24 @@ def update_checklist_day(day_number):
 
     day_key = f"day-{day_number}"
     if day_key not in tracker:
-        return jsonify({"error": "Day not found"}), 404
+        existing_days = [
+            int(key[4:])
+            for key in tracker
+            if key.startswith("day-") and key[4:].isdigit()
+        ]
+        last_day = max(existing_days, default=0)
+        if day_number != last_day + 1:
+            return jsonify({"error": "Only the next sequential day can be added"}), 404
+        try:
+            last_date = date.fromisoformat(tracker[f"day-{last_day}"]["date"])
+        except (KeyError, ValueError):
+            return jsonify({"error": "Unable to determine the next checklist date"}), 500
+        tracker[day_key] = {
+            "date": (last_date + timedelta(days=1)).isoformat(),
+            "exercise": False,
+            "eat-less": False,
+            "read": False,
+        }
 
     tracker[day_key][field] = value
     temporary_path = TRACKER_PATH.with_suffix(".tmp")

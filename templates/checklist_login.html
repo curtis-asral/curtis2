@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Checklist Access{% endblock %}
+
+{% block apple_touch_icon %}
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='checklist-192.png') }}">
+{% endblock %}
+
+{% block apple_mobile_web_app_title %}
+<meta name="apple-mobile-web-app-title" content="Checklist">
+{% endblock %}
+
+{% block extra_head %}
+<link rel="manifest" href="{{ url_for('static', filename='manifest-checklist.json') }}">
+{% endblock %}
+
+{% block content %}
+<main class="checklist-login">
+  <p class="checklist-kicker">100 DAYS</p>
+  <h1 class="title">Daily checklist</h1>
+
+  {% if setup_error %}
+  <p class="checklist-login-error" role="alert">Checklist access is not configured on this server.</p>
+  {% else %}
+  <form class="checklist-login-form" method="post" action="{{ url_for('checklist') }}">
+    <label for="checklistPassword">Password</label>
+    <input id="checklistPassword" name="password" type="password" autocomplete="current-password" required autofocus>
+    {% if login_error %}
+    <p class="checklist-login-error" role="alert">Incorrect password.</p>
+    {% endif %}
+    <button type="submit">Unlock checklist</button>
+  </form>
+  {% endif %}
+</main>
+{% endblock %}
