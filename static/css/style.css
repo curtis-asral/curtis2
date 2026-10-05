@@ -685,6 +685,27 @@ button.primary:disabled {
     font-weight: 650;
 }
 
+.calendar-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 14px 0 16px;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.calendar-filters label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.calendar-filters input {
+    accent-color: var(--accent-mint);
+}
+
 .calendar-nav {
     width: 32px;
     height: 32px;
@@ -727,11 +748,13 @@ button.primary:disabled {
     color: var(--muted);
 }
 
+.calendar-day.past-current,
 .calendar-day.partial {
     border-color: var(--accent-lavender);
 }
 
-.calendar-day.complete {
+.calendar-day.filter-match {
+    border-color: var(--accent-mint);
     background: var(--accent-mint);
     color: var(--check-accent-ink);
 }
@@ -743,29 +766,6 @@ button.primary:disabled {
 
 .calendar-day:disabled {
     cursor: default;
-}
-
-.tracker-legend {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 7px;
-    margin-top: 16px;
-    color: var(--muted);
-    font-size: 0.72rem;
-}
-
-.legend-mark {
-    width: 10px;
-    height: 10px;
-    margin-left: 8px;
-    border: 1px solid var(--accent-lavender);
-    border-radius: 50%;
-}
-
-.legend-mark.complete {
-    border-color: var(--accent-mint);
-    background: var(--accent-mint);
 }
 
 .progress-heading {

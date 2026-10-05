@@ -57,8 +57,12 @@
         <h2 id="calendarMonth"></h2>
         <button type="button" class="calendar-nav" id="nextMonth" aria-label="Next month">&rarr;</button>
       </div>
+      <div class="calendar-filters" role="group" aria-label="Filter calendar by accomplishments">
+        <label><input type="checkbox" data-calendar-filter="exercise" checked> Exercise</label>
+        <label><input type="checkbox" data-calendar-filter="eat-less" checked> Eat less</label>
+        <label><input type="checkbox" data-calendar-filter="read" checked> Read</label>
+      </div>
       <div class="calendar-grid" id="calendarGrid" aria-label="Calendar"></div>
-      <div class="tracker-legend"><span class="legend-mark complete"></span> All complete <span class="legend-mark partial"></span> In progress</div>
     </div>
 
     <div class="tracker-view hidden" id="progressView" role="tabpanel" aria-labelledby="progressTab" hidden>
@@ -83,6 +87,7 @@ const itemLabels = [
 let tracker = {};
 let selectedDay = 1;
 let visibleMonth;
+const selectedCalendarFilters = new Set(itemLabels.map(([key]) => key));
 let saveQueue = Promise.resolve();
 let notesTimer;
 
@@ -174,6 +179,9 @@ function renderCalendar() {
   const month = visibleMonth.getMonth();
   document.getElementById('calendarMonth').textContent = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const grid = document.getElementById('calendarGrid');
+  grid.setAttribute('aria-label', selectedCalendarFilters.size
+    ? 'Calendar highlighting dates that match selected accomplishments'
+    : 'Calendar');
   grid.replaceChildren();
   for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
     const heading = document.createElement('span');
@@ -185,6 +193,8 @@ function renderCalendar() {
   const firstDate = new Date(year, month, 1);
   const offset = (firstDate.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const now = new Date();
+  const todayString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   for (let i = 0; i < offset; i += 1) {
     const blank = document.createElement('span');
     blank.className = 'calendar-blank';
@@ -197,11 +207,20 @@ function renderCalendar() {
     button.type = 'button';
     button.className = 'calendar-day';
     button.textContent = date;
+    if (dateString <= todayString) button.classList.add('past-current');
     if (matchingDay) {
       const number = Number(matchingDay[0].slice(4));
       const count = dayCompletion(matchingDay[1]);
       button.classList.add(count === 3 ? 'complete' : count > 0 ? 'partial' : 'incomplete');
-      button.setAttribute('aria-label', `${formatDate(dateString, { month: 'long', day: 'numeric' })}, day ${number}, ${count} of 3 complete`);
+      const categoryMatch = selectedCalendarFilters.size > 0
+        && [...selectedCalendarFilters].every(key => matchingDay[1][key] === true);
+      if (selectedCalendarFilters.size) {
+        if (categoryMatch) button.classList.add('filter-match');
+      }
+      const filterStatus = selectedCalendarFilters.size
+        ? `, ${categoryMatch ? 'matches' : 'does not match'} selected accomplishment filters`
+        : '';
+      button.setAttribute('aria-label', `${formatDate(dateString, { month: 'long', day: 'numeric' })}, day ${number}, ${count} of 3 complete${filterStatus}`);
       button.setAttribute('aria-pressed', String(number === selectedDay));
       if (number === selectedDay) button.classList.add('selected');
       button.addEventListener('click', () => setSelectedDay(number));
@@ -339,6 +358,13 @@ document.getElementById('nextMonth').addEventListener('click', () => {
   visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
   renderCalendar();
 });
+for (const checkbox of document.querySelectorAll('[data-calendar-filter]')) {
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) selectedCalendarFilters.add(checkbox.dataset.calendarFilter);
+    else selectedCalendarFilters.delete(checkbox.dataset.calendarFilter);
+    renderCalendar();
+  });
+}
 
 for (const [tabId, viewId] of [['calendarTab', 'calendarView'], ['progressTab', 'progressView']]) {
   document.getElementById(tabId).addEventListener('click', () => {
