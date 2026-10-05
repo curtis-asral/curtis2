@@ -21,6 +21,8 @@ load_dotenv(override=True)
 app = Flask(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -35,7 +37,7 @@ app.config["CHECKLIST_COOKIE_SECRET"] = os.environ.get("CHECKLIST_COOKIE_SECRET"
 app.config["CHECKLIST_COOKIE_SECURE"] = os.environ.get("CHECKLIST_COOKIE_SECURE", "true").lower() in {"1", "true", "yes"}
 
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
-TRACKER_PATH = BASE_DIR / "static" / "100_days_tracker.json"
+TRACKER_PATH = DATA_DIR / "100_days_tracker.json"
 CLEANUP_THRESHOLD = 24 * 3600  # 24 hours in seconds
 CHECKLIST_COOKIE_NAME = "checklist_device"
 CHECKLIST_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60

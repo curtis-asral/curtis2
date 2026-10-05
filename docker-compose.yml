@@ -3,9 +3,11 @@ services:
     image: curtisasral/homepage:latest
     container_name: curtis-homepage
     environment:
-      CHECKLIST_PASSWORD: "${CHECKLIST_PASSWORD:?Set CHECKLIST_PASSWORD in .env}"
-      CHECKLIST_COOKIE_SECRET: "${CHECKLIST_COOKIE_SECRET:?Set CHECKLIST_COOKIE_SECRET in .env}"
+      CHECKLIST_PASSWORD: "${CHECKLIST_PASSWORD}"
+      CHECKLIST_COOKIE_SECRET: "${CHECKLIST_COOKIE_SECRET}"
       CHECKLIST_COOKIE_SECURE: "true"
+    volumes:
+      - ./data:/app/data
     networks:
       - appnet
 
@@ -14,12 +16,7 @@ services:
     container_name: cloudflared-tunnel
     env_file:
       - .env
-    command:
-      - tunnel
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN}
-      - --url
-      - http://curtis-homepage:5000
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - appnet
 
