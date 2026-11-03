@@ -191,6 +191,10 @@ def process_jpeg_to_hdr(input_path: Path, output_path: Path, num_exposures: int 
 def index():
     return render_template("index.html")
 
+@app.route("/rubik")
+def rubik():
+    return render_template("rubik.html")
+
 @app.route("/hdr")
 def hdr():
     cleanup_old_batches()

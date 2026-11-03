@@ -1,0 +1,1273 @@
+{% extends "base.html" %}
+
+{% block title %}Rubik's Cube Solver — Curtis Asral{% endblock %}
+
+{% block extra_head %}
+<style>
+.page:has(.rubik-app) { max-width: 1120px; }
+.rubik-app h1.title { margin-bottom: 6px; }
+.rubik-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: 24px; }
+.rubik-main, .rubik-side { display: flex; flex-direction: column; gap: 16px; }
+.palette-card, .cube-card, .generate-card, .results-card, .status-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.palette-card { padding: 18px 20px; }
+.palette-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.palette-heading span:first-child { font-size:.875rem; font-weight:600; }
+.active-color { color:var(--muted); font-size:.75rem; }
+.palette { display:flex; flex-wrap:wrap; gap:10px; }
+.palette-btn { width:42px; height:42px; border-radius:12px; border:1px solid var(--border); cursor:pointer; transition:transform .15s,border-color .15s; }
+.palette-btn.active { transform:scale(1.08); border-color:var(--accent-lavender); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent-lavender) 25%, transparent); }
+.palette-note { margin-top:12px; color:var(--muted); font-size:.75rem; }
+.cube-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.cube-card { padding:18px; }
+.cube-heading, .results-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.cube-heading { margin-bottom:12px; }
+.cube-heading h2, .results-heading h2 { font-size:.95rem; font-weight:650; }
+.cube-heading small { color:var(--muted); font-size:.72rem; }
+.preset-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.preset-btn { border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--surface-hover); color:var(--text); padding:7px 10px; font-size:.72rem; cursor:pointer; }
+.preset-btn:hover { border-color:var(--accent-lavender); }
+.preset-btn.clear { color:var(--accent-rose); margin-left:auto; }
+.cube-net-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(3,minmax(0,1fr)); gap:5px; width:100%; max-width:320px; margin:0 auto; aspect-ratio:4/3; }
+.face-grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:2px; padding:3px; border-radius:7px; background:var(--bg); border:1px solid var(--border); }
+.sticker { aspect-ratio:1; border-radius:3px; cursor:pointer; transition:transform .1s,filter .15s; }
+.sticker:not(.center-sticker):hover { transform:scale(1.07); filter:brightness(1.12); }
+.center-sticker { cursor:not-allowed; box-shadow:inset 0 0 0 2px rgba(255,255,255,.45); }
+.color-gray { background:#6b7280; }
+.color-white { background:#f8fafc; border:1px solid #d1d5db; }
+.color-yellow { background:#eab308; }
+.color-green { background:#22c55e; }
+.color-blue { background:#3b82f6; }
+.color-red { background:#ef4444; }
+.color-orange { background:#f97316; }
+.cube-caption { margin-top:12px; padding-top:10px; border-top:1px solid var(--border); color:var(--muted); text-align:center; font-size:.7rem; }
+.generate-card { border:0; background:transparent; }
+#generateBtn, .rubik-secondary { border:0; border-radius:var(--radius-pill); cursor:pointer; font-weight:650; }
+#generateBtn { width:100%; min-height:50px; background:var(--accent-lavender); color:#0a0a0c; font-size:.9rem; }
+#generateBtn:hover { background:var(--accent-lavender-hover); }
+.status-card { padding:16px; }
+.status-card.hidden { display:none; }
+.results-card { min-height:220px; padding:18px; }
+.results-heading { padding-bottom:12px; border-bottom:1px solid var(--border); }
+.count-badge { border-radius:var(--radius-pill); background:var(--bg); border:1px solid var(--border); color:var(--muted); padding:4px 9px; font-size:.72rem; }
+#algoList { display:flex; flex-direction:column; gap:10px; max-height:380px; overflow-y:auto; margin-top:14px; }
+.result-empty { text-align:center; color:var(--muted); padding:38px 12px; font-size:.82rem; }
+.algo-card { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg); cursor:pointer; }
+.algo-card.primary { border-color:var(--accent-lavender); }
+.algo-card-head, .algo-card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.algo-option { color:var(--accent-lavender); font-size:.72rem; font-weight:700; text-transform:uppercase; }
+.move-count { color:var(--muted); background:var(--surface); border-radius:var(--radius-pill); padding:3px 8px; font-size:.72rem; }
+.move-string { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.82rem; overflow-wrap:anywhere; }
+.algo-card-actions button { border:0; background:none; color:var(--muted); cursor:pointer; font-size:.72rem; }
+.algo-card-actions button:last-child { color:var(--accent-lavender); font-weight:650; }
+#playbackSection { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.playback-heading, .playback-controls { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.playback-heading { margin-bottom:8px; font-size:.72rem; }
+#stepCounter { color:var(--accent-lavender); }
+.playback-display { padding:12px; margin-bottom:10px; border-radius:var(--radius-md); background:var(--bg); border:1px solid var(--border); text-align:center; }
+#currentMoveDisplay { min-height:28px; color:var(--accent-lavender); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:1.35rem; font-weight:700; }
+#currentSequencePreview { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.72rem; }
+.playback-controls { justify-content:center; }
+.playback-controls button { min-width:38px; height:38px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-hover); color:var(--text); cursor:pointer; }
+#playPauseBtn { padding:0 14px; color:#0a0a0c; border-color:var(--accent-lavender); background:var(--accent-lavender); }
+#toast { position:fixed; right:24px; bottom:24px; z-index:100; display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--surface); box-shadow:0 12px 30px rgba(0,0,0,.2); font-size:.82rem; transition:opacity .2s,transform .2s; }
+#toast.hidden { display:flex; opacity:0; transform:translateY(20px); pointer-events:none; }
+.search-options { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); }
+.search-mode { display:flex; flex-direction:column; gap:6px; }
+.search-mode label, .limit-fields label { color:var(--muted); font-size:.72rem; }
+.search-mode-options { display:flex; gap:6px; }
+.search-mode-options label { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; min-height:38px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-pill); color:var(--text); cursor:pointer; }
+.search-mode-options input { accent-color:var(--accent-lavender); }
+.search-mode-options label:has(input:checked) { border-color:var(--accent-lavender); background:color-mix(in srgb, var(--accent-lavender) 12%, var(--surface)); }
+.limit-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end; }
+.limit-fields label { display:flex; flex-direction:column; gap:5px; }
+.limit-fields input, .limit-fields select { width:100%; height:38px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); color:var(--text); padding:7px 9px; font:inherit; }
+.limit-fields input:disabled, .limit-fields select:disabled { opacity:.55; }
+.custom-limits-toggle { grid-column:1/-1; display:flex!important; flex-direction:row!important; align-items:center; gap:7px!important; }
+.custom-limits-toggle input { width:auto; height:auto; accent-color:var(--accent-lavender); }
+.limit-warning { grid-column:1/-1; color:var(--accent-rose); font-size:.68rem; }
+.memory-slider, .result-count-slider { grid-column:1/-1; display:flex!important; flex-direction:column!important; gap:7px!important; }
+.memory-slider-row, .result-count-slider-row { display:flex; align-items:center; gap:10px; }
+.memory-slider-row input, .result-count-slider-row input { flex:1; height:auto!important; accent-color:var(--accent-lavender); }
+.memory-value, .result-count-value { min-width:58px; text-align:right; color:var(--text); font-weight:650; }
+.loading-algorithms { display:flex; min-height:150px; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted); text-align:center; }
+.loading-spinner { width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent-lavender); border-radius:50%; animation:rubik-spin .8s linear infinite; }
+@keyframes rubik-spin { to { transform:rotate(360deg); } }
+#generateBtn:disabled { opacity:.55; cursor:not-allowed; }
+.search-options + .generate-card #generateBtn { margin-top:0; }
+@media(max-width:900px){ .rubik-grid{grid-template-columns:1fr;} .rubik-side{min-width:0;} }
+@media(max-width:620px){ .search-options{grid-template-columns:1fr;} .limit-fields{grid-template-columns:1fr 1fr;} .page:has(.rubik-app){padding-left:16px;padding-right:16px;} .cube-grid{grid-template-columns:1fr;} .palette-heading{align-items:flex-start;flex-direction:column;} .palette{gap:8px;} .palette-btn{width:38px;height:38px;} }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="rubik-app">
+  <h1 class="title">Rubik's Cube Solver</h1>
+  <p class="lede">Find an algorithm that moves between two cube states.</p>
+
+  <div class="rubik-grid">
+    <div class="rubik-main">
+      <div class="palette-card">
+        <div class="palette-heading">
+          <span>Active brush</span>
+          <span id="activeColorLabel" class="active-color">Gray (Wildcard / Ignore)</span>
+        </div>
+        <div id="paletteContainer" class="palette">
+          <button type="button" data-color="X" title="Gray / Ignore (Wildcard)" class="palette-btn color-gray active">×</button>
+          <button type="button" data-color="U" title="White (Up)" class="palette-btn color-white"></button>
+          <button type="button" data-color="D" title="Yellow (Down)" class="palette-btn color-yellow"></button>
+          <button type="button" data-color="F" title="Green (Front)" class="palette-btn color-green"></button>
+          <button type="button" data-color="B" title="Blue (Back)" class="palette-btn color-blue"></button>
+          <button type="button" data-color="R" title="Red (Right)" class="palette-btn color-red"></button>
+          <button type="button" data-color="L" title="Orange (Left)" class="palette-btn color-orange"></button>
+        </div>
+        <p class="palette-note">Centers are fixed. Paint the edges and corners; gray stickers act as wildcards.</p>
+      </div>
+
+      <div class="cube-grid">
+        <div class="cube-card">
+          <div class="cube-heading"><h2>Start state</h2><button id="resetAllBtn" type="button" class="preset-btn clear">Clear all</button></div>
+          <div class="preset-row">
+            <button type="button" onclick="applyPreset('start','cross')" class="preset-btn">Cross</button>
+            <button type="button" onclick="applyPreset('start','f2l')" class="preset-btn">F2L</button>
+            <button type="button" onclick="applyPreset('start','oll')" class="preset-btn">OLL</button>
+            <button type="button" onclick="applyPreset('start','solved')" class="preset-btn">Solved</button>
+            <button type="button" onclick="applyPreset('start','clear')" class="preset-btn">Clear</button>
+          </div>
+          <div id="startNet" class="cube-net-grid"></div>
+          <div class="cube-caption">U · L · F · R · B · D</div>
+        </div>
+
+        <div class="cube-card">
+          <div class="cube-heading"><h2>Target state</h2><small>Desired output</small></div>
+          <div class="preset-row">
+            <button type="button" onclick="applyPreset('target','cross')" class="preset-btn">Cross</button>
+            <button type="button" onclick="applyPreset('target','f2l')" class="preset-btn">F2L</button>
+            <button type="button" onclick="applyPreset('target','oll')" class="preset-btn">OLL</button>
+            <button type="button" onclick="applyPreset('target','solved')" class="preset-btn">Solved</button>
+            <button type="button" onclick="applyPreset('target','clear')" class="preset-btn clear">Clear</button>
+          </div>
+          <div id="targetNet" class="cube-net-grid"></div>
+          <div class="cube-caption">U · L · F · R · B · D</div>
+        </div>
+      </div>
+
+      <div class="search-options">
+        <div class="search-mode">
+          <label>Search priority</label>
+          <div class="search-mode-options">
+            <label><input type="radio" name="searchMode" value="shortest" checked> Fewest moves</label>
+            <label><input type="radio" name="searchMode" value="speed"> Physical speed</label>
+          </div>
+        </div>
+        <p class="palette-note">Searches return up to 50 algorithms and stop after 12 moves or when the fixed memory budget is reached.</p>
+      </div>
+
+      <div class="generate-card">
+        <button id="generateBtn" type="button" onclick="runSolver()">Generate algorithms</button>
+      </div>
+    </div>
+
+    <aside class="rubik-side">
+      <div id="statusBox" class="status-card hidden">
+        <strong id="statusTitle"></strong>
+        <p id="statusDesc"></p>
+        <span id="statusIcon" class="hidden"></span>
+      </div>
+
+      <div class="results-card">
+        <div class="results-heading">
+          <h2>Generated algorithms</h2>
+          <span id="algoCountBadge" class="count-badge">0 found</span>
+        </div>
+        <div id="algoList">
+          <div class="result-empty">Set up the start and target states, then generate algorithms.</div>
+        </div>
+        <div id="playbackSection" class="hidden">
+          <div class="playback-heading"><strong>Move visualizer</strong><span id="stepCounter">Step 0 / 0</span></div>
+          <div class="playback-display">
+            <div id="currentMoveDisplay">-</div>
+            <div id="currentSequencePreview"></div>
+          </div>
+          <div class="playback-controls">
+            <button type="button" onclick="stepPlayback('first')" title="First">|‹</button>
+            <button type="button" onclick="stepPlayback('prev')" title="Previous">‹</button>
+            <button type="button" id="playPauseBtn" onclick="toggleAutoPlay()">Play</button>
+            <button type="button" onclick="stepPlayback('next')" title="Next">›</button>
+            <button type="button" onclick="stepPlayback('last')" title="Last">›|</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div id="toast" class="hidden"><span id="toastIcon">✓</span><span id="toastMsg">Copied to clipboard!</span></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* -------------------------------------------------------------------------- */
+    /*  1. CUBE REPRESENTATION & STATE DATA                                       */
+    /* -------------------------------------------------------------------------- */
+    // Face order: U (0-8), L (9-17), F (18-26), R (27-35), B (36-44), D (45-53)
+    // Fixed center color mapping for each face index 4, 13, 22, 31, 40, 49
+    const FIXED_CENTERS = {
+      4: 'U',  // Up face center -> White
+      13: 'L', // Left face center -> Orange
+      22: 'F', // Front face center -> Green
+      31: 'R', // Right face center -> Red
+      40: 'B', // Back face center -> Blue
+      49: 'D'  // Down face center -> Yellow
+    };
+
+    const COLOR_CLASSES = {
+      'X': 'color-gray',
+      'U': 'color-white',
+      'D': 'color-yellow',
+      'F': 'color-green',
+      'B': 'color-blue',
+      'R': 'color-red',
+      'L': 'color-orange'
+    };
+
+    const COLOR_NAMES = {
+      'X': 'Gray (Wildcard / Ignore)',
+      'U': 'White (Up)',
+      'D': 'Yellow (Down)',
+      'F': 'Green (Front)',
+      'B': 'Blue (Back)',
+      'R': 'Red (Right)',
+      'L': 'Orange (Left)'
+    };
+
+    // Helper to initialize state with fixed centers
+    function createInitialStateWithFixedCenters(fillColor = 'X') {
+      const state = new Array(54).fill(fillColor);
+      // Set fixed centers
+      for (const [idx, col] of Object.entries(FIXED_CENTERS)) {
+        state[Number(idx)] = col;
+      }
+      return state;
+    }
+
+    // Global state arrays (54 stickers each)
+    let startState = createInitialStateWithFixedCenters('X');
+    let targetState = createInitialStateWithFixedCenters('X');
+    let visualizerState = createInitialStateWithFixedCenters('X');
+
+    let activeColor = 'X';
+
+    // Playback state
+    let activeAlgorithm = [];
+    let currentStep = 0;
+    let autoPlayTimer = null;
+
+    /* -------------------------------------------------------------------------- */
+    /*  2. CUBE PERMUTATION MAPS & MOVES                                          */
+    /* -------------------------------------------------------------------------- */
+    // Map defining facelet indexes for standard 3x3 layout
+    // U: 0-8, L: 9-17, F: 18-26, R: 27-35, B: 36-44, D: 45-53
+    
+    // Base 90-degree clockwise facelet permutations for standard move faces (U, D, L, R, F, B)
+    const MOVE_PERMUTATIONS = {
+      'U': [
+        // Face rotation (U)
+        [0, 2, 8, 6], [1, 5, 7, 3],
+        // Adjacent ring: B top -> R top -> F top -> L top
+        [36, 27, 18, 9], [37, 28, 19, 10], [38, 29, 20, 11]
+      ],
+      'D': [
+        // Face rotation (D)
+        [45, 47, 53, 51], [46, 50, 52, 48],
+        // Adjacent ring: F bot -> R bot -> B bot -> L bot
+        [24, 33, 42, 15], [25, 34, 43, 16], [26, 35, 44, 17]
+      ],
+      'R': [
+        // Face rotation (R)
+        [27, 29, 35, 33], [28, 32, 34, 30],
+        // Adjacent ring: U right -> B left -> D right -> F right
+        [2, 42, 47, 20], [5, 39, 50, 23], [8, 36, 53, 26]
+      ],
+      'L': [
+        // Face rotation (L)
+        [9, 11, 17, 15], [10, 14, 16, 12],
+        // Adjacent ring: U left -> F left -> D left -> B right
+        [0, 18, 45, 44], [3, 21, 48, 41], [6, 24, 51, 38]
+      ],
+      'F': [
+        // Face rotation (F)
+        [18, 20, 26, 24], [19, 23, 25, 21],
+        // Adjacent ring: U bot -> R left -> D top -> L right
+        [6, 27, 47, 17], [7, 30, 46, 14], [8, 33, 45, 11]
+      ],
+      'B': [
+        // Face rotation (B)
+        [36, 38, 44, 42], [37, 41, 43, 39],
+        // Adjacent ring: U top -> L left -> D bot -> R right
+        [2, 9, 51, 35], [1, 12, 52, 32], [0, 15, 53, 29]
+      ]
+    };
+
+    // Generate lookup maps for all 18 moves: U, U', U2, D, D', D2, etc.
+    const ALL_MOVES = ['U', "U'", 'U2', 'D', "D'", 'D2', 'R', "R'", 'R2', 'L', "L'", 'L2', 'F', "F'", 'F2', 'B', "B'", 'B2'];
+    const MOVE_TRANSFORMS = {};
+
+    function initMoveTransforms() {
+      const baseFaces = ['U', 'D', 'R', 'L', 'F', 'B'];
+      baseFaces.forEach(face => {
+        const cycles = MOVE_PERMUTATIONS[face];
+        
+        // Single CW Move
+        const transformCW = Array.from({length: 54}, (_, i) => i);
+        cycles.forEach(cycle => {
+          const len = cycle.length;
+          const temp = transformCW[cycle[len - 1]];
+          for (let i = len - 1; i > 0; i--) {
+            transformCW[cycle[i]] = transformCW[cycle[i - 1]];
+          }
+          transformCW[cycle[0]] = temp;
+        });
+
+        // 180 Double Move
+        const transform2 = Array.from({length: 54}, (_, i) => transformCW[transformCW[i]]);
+        
+        // CCW Prime Move
+        const transformCCW = Array.from({length: 54}, (_, i) => transformCW[transform2[i]]);
+
+        MOVE_TRANSFORMS[face] = transformCW;
+        MOVE_TRANSFORMS[face + "'"] = transformCCW;
+        MOVE_TRANSFORMS[face + '2'] = transform2;
+      });
+    }
+
+    initMoveTransforms();
+
+    // Apply move string to state
+    function applyMoveToState(state, moveStr) {
+      const transform = MOVE_TRANSFORMS[moveStr];
+      const newState = new Array(54);
+      for (let i = 0; i < 54; i++) {
+        newState[i] = state[transform[i]];
+      }
+      return newState;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*  3. INITIALIZATION & UI RENDERERS                                          */
+    /* -------------------------------------------------------------------------- */
+    
+    // Layout template for unfolded 2D net:
+    // [ Empty, Up(U),  Empty, Empty ]
+    // [ Left(L), Front(F), Right(R), Back(B) ]
+    // [ Empty, Down(D), Empty, Empty ]
+    const NET_GRID_LAYOUT = [
+      null, 'U', null, null,
+      'L',  'F', 'R',  'B',
+      null, 'D', null, null
+    ];
+
+    const FACE_OFFSET = { 'U': 0, 'L': 9, 'F': 18, 'R': 27, 'B': 36, 'D': 45 };
+
+    function buildNet(containerId, stateArray, isTarget = false) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      NET_GRID_LAYOUT.forEach(face => {
+        if (!face) {
+          const emptyDiv = document.createElement('div');
+          container.appendChild(emptyDiv);
+        } else {
+          const faceDiv = document.createElement('div');
+          faceDiv.className = 'face-grid';
+          const offset = FACE_OFFSET[face];
+
+          for (let i = 0; i < 9; i++) {
+            const index = offset + i;
+            const isCenter = (i === 4);
+            const sticker = document.createElement('div');
+            
+            const stickerColor = isCenter ? FIXED_CENTERS[index] : stateArray[index];
+            sticker.className = `sticker ${COLOR_CLASSES[stickerColor]} ${isCenter ? 'center-sticker' : ''}`;
+            sticker.dataset.index = index;
+            sticker.title = isCenter ? `Fixed Center ${face} (${COLOR_NAMES[stickerColor]})` : `Face ${face} Sticker ${i + 1}`;
+
+            if (!isCenter) {
+              sticker.addEventListener('click', () => {
+                stateArray[index] = activeColor;
+                sticker.className = `sticker ${COLOR_CLASSES[activeColor]}`;
+                resetVisualizer();
+              });
+            }
+
+            faceDiv.appendChild(sticker);
+          }
+          container.appendChild(faceDiv);
+        }
+      });
+    }
+
+    function renderNet(containerId, stateArray) {
+      const container = document.getElementById(containerId);
+      const stickers = container.querySelectorAll('.sticker');
+      stickers.forEach(sticker => {
+        const idx = parseInt(sticker.dataset.index);
+        const isCenter = (idx === 4 || idx === 13 || idx === 22 || idx === 31 || idx === 40 || idx === 49);
+        const color = isCenter ? FIXED_CENTERS[idx] : stateArray[idx];
+        sticker.className = `sticker ${COLOR_CLASSES[color]} ${isCenter ? 'center-sticker' : ''}`;
+      });
+    }
+
+    // Palette Selection Listener
+    document.querySelectorAll('.palette-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
+        const target = e.currentTarget;
+        target.classList.add('active');
+        activeColor = target.dataset.color;
+        document.getElementById('activeColorLabel').textContent = COLOR_NAMES[activeColor];
+      });
+    });
+
+    document.getElementById('resetAllBtn').addEventListener('click', () => {
+      applyPreset('start', 'clear');
+      applyPreset('target', 'clear');
+      hideStatus();
+      resetResults();
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /*  4. PRESET GENERATOR LOGIC                                                 */
+    /* -------------------------------------------------------------------------- */
+    function applyPreset(cubeType, presetType) {
+      const state = (cubeType === 'start') ? startState : targetState;
+      
+      // Reset all non-center stickers to 'X' (gray)
+      for (let i = 0; i < 54; i++) {
+        if (!FIXED_CENTERS[i]) {
+          state[i] = 'X';
+        }
+      }
+
+      if (presetType === 'solved') {
+        ['U', 'L', 'F', 'R', 'B', 'D'].forEach(face => {
+          const offset = FACE_OFFSET[face];
+          for (let i = 0; i < 9; i++) {
+            if (i !== 4) state[offset + i] = face;
+          }
+        });
+      } else if (presetType === 'cross') {
+        // D Cross edges matching adjacent centers
+        state[FACE_OFFSET['D'] + 1] = 'D'; // North edge D
+        state[FACE_OFFSET['D'] + 3] = 'D'; // West edge D
+        state[FACE_OFFSET['D'] + 5] = 'D'; // East edge D
+        state[FACE_OFFSET['D'] + 7] = 'D'; // South edge D
+
+        // Adjacent bottom edges on F, B, L, R
+        state[FACE_OFFSET['F'] + 7] = 'F';
+        state[FACE_OFFSET['B'] + 7] = 'B';
+        state[FACE_OFFSET['L'] + 7] = 'L';
+        state[FACE_OFFSET['R'] + 7] = 'R';
+      } else if (presetType === 'f2l') {
+        // Complete D face stickers + bottom 2 rows of F, B, L, R
+        for (let i = 0; i < 9; i++) {
+          if (i !== 4) state[FACE_OFFSET['D'] + i] = 'D';
+        }
+
+        ['F', 'B', 'L', 'R'].forEach(face => {
+          const offset = FACE_OFFSET[face];
+          for (let i = 3; i < 9; i++) {
+            if (i !== 4) state[offset + i] = face;
+          }
+        });
+      } else if (presetType === 'oll') {
+        applyPreset(cubeType, 'f2l');
+        for (let i = 0; i < 9; i++) {
+          if (i !== 4) state[FACE_OFFSET['U'] + i] = 'U';
+        }
+      }
+
+      renderNet(cubeType === 'start' ? 'startNet' : 'targetNet', state);
+      resetVisualizer();
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*  5. ALGORITHM SOLVER ENGINE                                                */
+    /* -------------------------------------------------------------------------- */
+    // solveRubik is fully self-contained (no outer references) so it can be
+    // stringified into a Web Worker. How it is fast:
+    //  1. Piece-aware pruning: start stickers that can never end up in a
+    //     constrained target slot are masked out, so the search tracks only
+    //     the stickers that matter and merges states that differ only in
+    //     irrelevant ones.
+    //  2. Bidirectional search (meet in the middle) when the problem is
+    //     "tight" (every tracked sticker must land on a target sticker).
+    //     Depth 10 costs about the same as depth 5 forward only.
+    //  3. Typed arrays and a 64-bit Zobrist hash table instead of strings,
+    //     object paths and Array.shift().
+    //  4. Every result is re-verified against the original start and target.
+    function solveRubik(input, report) {
+      const t0 = Date.now();
+      const deadline = t0 + input.timeLimitMs;
+      const start = input.start, target = input.target, sig = input.sig, names = input.moveNames;
+      const maxResults = input.maxResults, maxDepth = input.maxDepth, nodeCap = input.nodeCap;
+      const slack = input.extraDepth; // keep searching this many moves past the shortest solution
+      const searchMode = input.searchMode === 'speed' ? 'speed' : 'shortest';
+      const COLOR_IDX = { U: 0, L: 1, F: 2, R: 3, B: 4, D: 5 };
+      const COLOR_NAME = ['white', 'orange', 'green', 'red', 'blue', 'yellow'];
+      const NMOVES = 18;
+
+      // Approximate completion cost for physical execution. Back, front, and
+      // double moves are weighted slightly higher because they usually require
+      // more hand travel than R/U moves. This is a relative TPS model, not a
+      // claim that a universal human turn speed exists.
+      function movePhysicalCost(m) {
+        const face = (m / 3) | 0;
+        const modifier = m % 3;
+        const base = [0.92, 1.00, 0.96, 0.96, 1.22, 1.28][face];
+        return base + (modifier === 1 ? 0.04 : 0) + (modifier === 2 ? 0.08 : 0);
+      }
+      const MOVE_ORDER = Array.from({ length: NMOVES }, (_, m) => m)
+        .sort((a, b) => searchMode === 'speed'
+          ? movePhysicalCost(a) - movePhysicalCost(b) || a - b
+          : a - b);
+      function algorithmPhysicalCost(moves) {
+        let cost = 0;
+        let previousFace = -1;
+        for (const m of moves) {
+          const face = (m / 3) | 0;
+          cost += movePhysicalCost(m);
+          if (previousFace >= 0 && previousFace !== face) {
+            // Frequent face changes and awkward transitions reduce real-world TPS.
+            if ((previousFace === 4 && face === 1) || (previousFace === 1 && face === 4) ||
+                (previousFace === 5 && face === 4) || (previousFace === 4 && face === 5)) cost += 0.38;
+            else if (previousFace === 4 || face === 4 || previousFace === 5 || face === 5) cost += 0.18;
+            else cost += 0.07;
+          }
+          previousFace = face;
+        }
+        return cost;
+      }
+      const FANOUT = 11;
+
+      function popcount(x) { let c = 0; while (x) { c += x & 1; x >>= 1; } return c; }
+      // position type: 0 corner, 1 edge, -1 center
+      const ptype = new Int8Array(54);
+      for (let i = 0; i < 54; i++) {
+        const p = popcount(sig[i]);
+        ptype[i] = p === 3 ? 0 : (p === 2 ? 1 : -1);
+      }
+
+      // trMap[m][i]: new[i] = old[trMap[m][i]]   fwdMap[m][p]: where the sticker at p goes
+      const trMap = input.tr.map(a => Uint8Array.from(a));
+      const fwdMap = trMap.map(a => {
+        const f = new Uint8Array(54);
+        for (let i = 0; i < 54; i++) f[a[i]] = i;
+        return f;
+      });
+
+      // bad[a*7+b] = 1 when face a followed by face b is redundant (6 = no face yet)
+      const bad = new Uint8Array(49);
+      for (let a = 0; a < 6; a++) {
+        for (let b = 0; b < 6; b++) bad[a * 7 + b] = (a === b || (b === (a ^ 1) && a > b)) ? 1 : 0;
+      }
+
+      function stats(extra) {
+        const o = { ms: Date.now() - t0, nodes: 0, completed: 0, mode: 'none', tracked: 0, need: 0 };
+        for (const key in extra) o[key] = extra[key];
+        return o;
+      }
+      function verify(moves) {
+        let s = start.slice();
+        for (let j = 0; j < moves.length; j++) {
+          const t = trMap[moves[j]];
+          const n = new Array(54);
+          for (let i = 0; i < 54; i++) n[i] = s[t[i]];
+          s = n;
+        }
+        for (let i = 0; i < 54; i++) if (target[i] !== 'X' && s[i] !== target[i]) return false;
+        return true;
+      }
+
+      // ---- target constraints ----
+      const tcolT = new Int8Array(54).fill(-1);
+      const consPos = [];
+      for (let i = 0; i < 54; i++) {
+        if (ptype[i] >= 0 && target[i] !== 'X') { tcolT[i] = COLOR_IDX[target[i]]; consPos.push(i); }
+      }
+      const need = consPos.length;
+      if (need === 0) return { status: 'found', results: [[]], stats: stats({ need: 0 }) };
+
+      // ---- piece-aware masking ----
+      const slotPos = {};
+      for (let i = 0; i < 54; i++) {
+        if (ptype[i] >= 0) {
+          if (!slotPos[sig[i]]) slotPos[sig[i]] = [];
+          slotPos[sig[i]].push(i);
+        }
+      }
+      const slotIds = Object.keys(slotPos).map(Number);
+      const needC = {}, haveC = {};
+      slotIds.forEach(s => {
+        const nc = [0, 0, 0, 0, 0, 0], hc = [0, 0, 0, 0, 0, 0];
+        slotPos[s].forEach(p => {
+          if (tcolT[p] >= 0) nc[tcolT[p]]++;
+          if (start[p] !== 'X') hc[COLOR_IDX[start[p]]]++;
+        });
+        needC[s] = nc; haveC[s] = hc;
+      });
+      const constrained = slotIds.filter(s => needC[s].some(v => v > 0));
+      // canFill[q]: constrained slots that the start piece at location q could fill
+      const canFill = {};
+      slotIds.forEach(q => {
+        canFill[q] = constrained.filter(m =>
+          ptype[slotPos[m][0]] === ptype[slotPos[q][0]] && needC[m].every((v, c) => v <= haveC[q][c]));
+      });
+      for (let i = 0; i < constrained.length; i++) {
+        const m = constrained[i];
+        if (!slotIds.some(q => canFill[q].indexOf(m) >= 0)) {
+          return {
+            status: 'impossible', results: [], stats: stats({ need: need }),
+            reason: 'A target piece position needs a combination of colors that no piece in the start state has.'
+          };
+        }
+      }
+      const tposL = [], tcolL = [];
+      for (let j = 0; j < 54; j++) {
+        if (ptype[j] < 0 || start[j] === 'X') continue;
+        const c = COLOR_IDX[start[j]];
+        if (canFill[sig[j]].some(m => needC[m][c] > 0)) { tposL.push(j); tcolL.push(c); }
+      }
+      const k = tposL.length;
+      const tcnt = new Int32Array(12), ccnt = new Int32Array(12);
+      tposL.forEach((p, t) => { tcnt[tcolL[t] * 2 + ptype[p]]++; });
+      consPos.forEach(p => { ccnt[tcolT[p] * 2 + ptype[p]]++; });
+      for (let c = 0; c < 12; c++) {
+        if (ccnt[c] > tcnt[c]) {
+          return {
+            status: 'impossible', results: [], stats: stats({ need: need, tracked: k }),
+            reason: 'The target needs ' + ccnt[c] + ' ' + COLOR_NAME[c >> 1] + ' ' + ((c & 1) ? 'edge' : 'corner') +
+              ' sticker(s) but the start state only provides ' + tcnt[c] + '.'
+          };
+        }
+      }
+      const tight = (k === need);
+
+      // ---- zobrist keys ----
+      let seed = 0x2545F491;
+      function rnd() { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed | 0; }
+      const Z1 = new Int32Array(324), Z2 = new Int32Array(324);
+      for (let i = 0; i < 324; i++) { Z1[i] = rnd(); Z2[i] = rnd(); }
+
+      // ---- hash-table backed node store ----
+      function makeSide() {
+        let cap = 1 << 12, n = 0;
+        let k1 = new Int32Array(cap), k2 = new Int32Array(cap), par = new Int32Array(cap), mv = new Int8Array(cap);
+        let hcap = 1 << 13, hmask = hcap - 1, table = new Int32Array(hcap).fill(-1);
+        function rehash() {
+          hcap *= 2; hmask = hcap - 1; table = new Int32Array(hcap).fill(-1);
+          for (let id = 0; id < n; id++) {
+            let h = (k1[id] ^ Math.imul(k2[id], 0x85ebca6b)) & hmask;
+            while (table[h] >= 0) h = (h + 1) & hmask;
+            table[h] = id;
+          }
+        }
+        function growNodes() {
+          cap *= 2;
+          const a = new Int32Array(cap); a.set(k1); k1 = a;
+          const b = new Int32Array(cap); b.set(k2); k2 = b;
+          const c = new Int32Array(cap); c.set(par); par = c;
+          const d = new Int8Array(cap); d.set(mv); mv = d;
+        }
+        return {
+          size: function () { return n; },
+          // returns the new node id, or -1 if the key already exists
+          tryAdd: function (a, b, p, m) {
+            if ((n + 1) * 2 > hcap) rehash();
+            let h = (a ^ Math.imul(b, 0x85ebca6b)) & hmask;
+            for (;;) {
+              const id = table[h];
+              if (id < 0) break;
+              if (k1[id] === a && k2[id] === b) return -1;
+              h = (h + 1) & hmask;
+            }
+            if (n >= cap) growNodes();
+            table[h] = n; k1[n] = a; k2[n] = b; par[n] = p; mv[n] = m;
+            return n++;
+          },
+          find: function (a, b) {
+            let h = (a ^ Math.imul(b, 0x85ebca6b)) & hmask;
+            for (;;) {
+              const id = table[h];
+              if (id < 0) return -1;
+              if (k1[id] === a && k2[id] === b) return id;
+              h = (h + 1) & hmask;
+            }
+          },
+          // moves from this node back to the root (the node's own move first)
+          chain: function (id) {
+            const out = [];
+            while (par[id] >= 0) { out.push(mv[id]); id = par[id]; }
+            return out;
+          }
+        };
+      }
+
+      function makeFrontier(posArr) {
+        return { cnt: 1, pos: Uint8Array.from(posArr), ids: Int32Array.of(0), last: Int8Array.of(6) };
+      }
+
+      // Expand one BFS level. back=false: stickers move by fwdMap. back=true: a move is
+      // prepended to the sequence and constraint positions move by trMap.
+      function expand(side, fr, maps, zo, back, colArr, onNew) {
+        const cnt = fr.cnt, pos = fr.pos;
+        let outCap = Math.max(64, cnt * 6);
+        let outPos = new Uint8Array(outCap * k), outIds = new Int32Array(outCap), outLast = new Int8Array(outCap);
+        let outCnt = 0, aborted = false, stop = false;
+        const tmp = new Uint8Array(k);
+        const checkMatch = colArr !== null;
+        for (let i = 0; i < cnt && !stop; i++) {
+          if ((i & 1023) === 0 && Date.now() > deadline) { aborted = true; break; }
+          const base = i * k, last = fr.last[i], pid = fr.ids[i];
+          for (let oi = 0; oi < NMOVES; oi++) {
+            const m = MOVE_ORDER[oi];
+            const nf = (m / 3) | 0;
+            if (back ? bad[nf * 7 + last] : bad[last * 7 + nf]) continue;
+            const map = maps[m];
+            let h1 = 0, h2 = 0, matches = 0;
+            for (let t = 0; t < k; t++) {
+              const p = map[pos[base + t]];
+              tmp[t] = p;
+              const zi = zo[t] + p;
+              h1 ^= Z1[zi]; h2 ^= Z2[zi];
+              if (checkMatch && tcolT[p] === colArr[t]) matches++;
+            }
+            const id = side.tryAdd(h1, h2, pid, m);
+            if (id < 0) continue;
+            if (outCnt === outCap) {
+              outCap *= 2;
+              const np = new Uint8Array(outCap * k); np.set(outPos); outPos = np;
+              const ni = new Int32Array(outCap); ni.set(outIds); outIds = ni;
+              const nl = new Int8Array(outCap); nl.set(outLast); outLast = nl;
+            }
+            outPos.set(tmp, outCnt * k);
+            outIds[outCnt] = id; outLast[outCnt] = nf; outCnt++;
+            if (onNew(id, h1, h2, matches) === true) { stop = true; break; }
+          }
+        }
+        return { fr: { cnt: outCnt, pos: outPos, ids: outIds, last: outLast }, aborted: aborted };
+      }
+
+      const results = [];
+      const seen = new Set();
+      function addResult(moves) {
+        const key = moves.join(',');
+        if (seen.has(key)) return;
+        if (!verify(moves)) return;
+        seen.add(key);
+        results.push(moves);
+      }
+
+      let completed = 0, limited = false, exhausted = false, nodes = 0, mode;
+      // true once every solution up to (shortest + slack) moves has been collected
+      function enough() {
+        if (results.length === 0) return false;
+        let best = results[0].length;
+        for (let i = 1; i < results.length; i++) if (results[i].length < best) best = results[i].length;
+        return completed >= best + slack;
+      }
+      const zoF = new Uint16Array(k);
+      for (let t = 0; t < k; t++) zoF[t] = tcolL[t] * 54;
+
+      // root already matches?
+      let rootMatches = 0;
+      for (let t = 0; t < k; t++) if (tcolT[tposL[t]] === tcolL[t]) rootMatches++;
+      if (rootMatches === need) addResult([]);
+
+      if (tight && results.length === 0) {
+        mode = 'bidirectional';
+        const F = makeSide(), B = makeSide();
+        const zoB = new Uint16Array(k);
+        for (let t = 0; t < k; t++) zoB[t] = tcolT[consPos[t]] * 54;
+        function rootKey(posArr, zo) {
+          let a = 0, b = 0;
+          for (let t = 0; t < k; t++) { const zi = zo[t] + posArr[t]; a ^= Z1[zi]; b ^= Z2[zi]; }
+          return [a, b];
+        }
+        const fk = rootKey(tposL, zoF), bk = rootKey(consPos, zoB);
+        F.tryAdd(fk[0], fk[1], -1, -1);
+        B.tryAdd(bk[0], bk[1], -1, -1);
+        if (fk[0] === bk[0] && fk[1] === bk[1]) addResult([]);
+
+        function addMeet(fnode, bnode) {
+          const A = F.chain(fnode).reverse();
+          const Bc = B.chain(bnode);
+          if (A.length && Bc.length && bad[((A[A.length - 1] / 3) | 0) * 7 + ((Bc[0] / 3) | 0)]) return;
+          addResult(A.concat(Bc));
+        }
+        const onNewF = function (id, h1, h2) {
+          const o = B.find(h1, h2);
+          if (o >= 0) addMeet(id, o);
+          return results.length >= maxResults;
+        };
+        const onNewB = function (id, h1, h2) {
+          const o = F.find(h1, h2);
+          if (o >= 0) addMeet(o, id);
+          return results.length >= maxResults;
+        };
+        let ff = makeFrontier(tposL), fb = makeFrontier(consPos);
+        let df = 0, db = 0;
+        while (results.length < maxResults) {
+          if (df + db >= maxDepth) { limited = true; break; }
+          if (ff.cnt === 0 && fb.cnt === 0) { exhausted = true; break; }
+          const canF = ff.cnt > 0 && F.size() + ff.cnt * FANOUT <= nodeCap;
+          const canB = fb.cnt > 0 && B.size() + fb.cnt * FANOUT <= nodeCap;
+          if (!canF && !canB) { limited = true; break; }
+          let r;
+          if (canF && (!canB || ff.cnt <= fb.cnt)) {
+            r = expand(F, ff, fwdMap, zoF, false, null, onNewF);
+            ff = r.fr; df++;
+          } else {
+            r = expand(B, fb, trMap, zoB, true, null, onNewB);
+            fb = r.fr; db++;
+          }
+          if (r.aborted) { limited = true; break; }
+          completed = df + db;
+          if (report) report({ depth: completed, nodes: F.size() + B.size(), ms: Date.now() - t0 });
+          if (enough()) break;
+        }
+        nodes = F.size() + B.size();
+      } else if (results.length === 0) {
+        mode = 'forward';
+        const F = makeSide();
+        let a = 0, b = 0;
+        for (let t = 0; t < k; t++) { const zi = zoF[t] + tposL[t]; a ^= Z1[zi]; b ^= Z2[zi]; }
+        F.tryAdd(a, b, -1, -1);
+        const colArr = Uint8Array.from(tcolL);
+        const onNew = function (id, h1, h2, matches) {
+          if (matches === need) addResult(F.chain(id).reverse());
+          return results.length >= maxResults;
+        };
+        let ff = makeFrontier(tposL), df = 0;
+        while (results.length < maxResults) {
+          if (df >= maxDepth) { limited = true; break; }
+          if (ff.cnt === 0) { exhausted = true; break; }
+          if (F.size() + ff.cnt * FANOUT > nodeCap) { limited = true; break; }
+          const r = expand(F, ff, fwdMap, zoF, false, colArr, onNew);
+          ff = r.fr; df++;
+          if (r.aborted) { limited = true; break; }
+          completed = df;
+          if (report) report({ depth: completed, nodes: F.size(), ms: Date.now() - t0 });
+          if (enough()) break;
+        }
+        nodes = F.size();
+      } else {
+        mode = 'trivial';
+      }
+
+      if (searchMode === 'speed') {
+        results.sort((x, y) => algorithmPhysicalCost(x) - algorithmPhysicalCost(y) || x.length - y.length);
+      } else {
+        results.sort((x, y) => x.length - y.length);
+      }
+      const out = results.slice(0, maxResults).map(r => r.map(m => names[m]));
+      const st = stats({ nodes: nodes, completed: completed, mode: mode, searchMode: searchMode, tracked: k, need: need });
+      if (out.length > 0) return { status: 'found', results: out, stats: st };
+      return { status: exhausted ? 'none' : 'limit', results: [], stats: st };
+    }
+
+    // Check if current state matches target pattern (where 'X' in target matches anything)
+    function isPatternMatch(current, target) {
+      for (let i = 0; i < 54; i++) {
+        if (target[i] !== 'X' && current[i] !== target[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*  5b. SOLVER RUNNER (Web Worker with main-thread fallback)                   */
+    /* -------------------------------------------------------------------------- */
+    // Sticker signature = bitmask of the face turns that move it. Stickers of one
+    // physical piece share a signature (corners have 3 bits, edges 2, centers 0).
+    // Face order matches ALL_MOVES (three moves per face).
+    const FACE_ORDER = ['U', 'D', 'R', 'L', 'F', 'B'];
+    const STICKER_SIG = (function () {
+      const sig = new Array(54).fill(0);
+      FACE_ORDER.forEach(function (face, fi) {
+        MOVE_PERMUTATIONS[face].forEach(function (cycle) {
+          cycle.forEach(function (p) { sig[p] |= (1 << fi); });
+        });
+      });
+      return sig;
+    })();
+
+    const SOLVER_LIMITS = {
+      maxResults: 50,      // always return up to 50 algorithms
+      maxDepth: 12,        // fixed search depth
+      nodeCap: 4194304,    // fixed browser memory guard
+      timeLimitMs: Number.MAX_SAFE_INTEGER, // depth and memory are the only search limits
+      extraDepth: 1        // keep looking this many moves past the shortest solution
+    };
+
+    let solverWorker = null;
+    let solverUrl = null;
+    let solverRunning = false;
+    let solverToken = 0;
+
+    function showAlgorithmLoading() {
+      document.getElementById('algoCountBadge').textContent = 'Searching';
+      document.getElementById('algoList').innerHTML = `
+        <div class="loading-algorithms" role="status" aria-live="polite">
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span>Searching for algorithms…</span>
+        </div>`;
+    }
+
+    function setSolverRunning(running) {
+      solverRunning = running;
+      const button = document.getElementById('generateBtn');
+      button.disabled = running;
+      button.textContent = running ? 'Searching…' : 'Generate algorithms';
+      if (running) showAlgorithmLoading();
+    }
+
+    function disposeSolverWorker() {
+      if (solverWorker) { solverWorker.terminate(); solverWorker = null; }
+      if (solverUrl) { URL.revokeObjectURL(solverUrl); solverUrl = null; }
+    }
+
+    function cancelSolver(silent) {
+      solverToken++; // ignore anything still in flight
+      disposeSolverWorker();
+      if (!solverRunning) return;
+      setSolverRunning(false);
+      if (silent) hideStatus();
+      else showStatus('warning', 'Search Cancelled', 'No algorithms were generated.');
+    }
+
+    function handleSolverResult(out) {
+      const s = out.stats;
+      if (out.status === 'found') {
+        const best = out.results[0].length;
+        const priority = s.searchMode === 'speed'
+          ? 'Prioritizing physical completion speed.'
+          : 'Prioritizing the fewest moves.';
+        showStatus('success', 'Found ' + out.results.length + ' Algorithm(s)',
+          priority + ' Best result is ' + best + ' move' + (best === 1 ? '' : 's') + '. Explored ' +
+          s.nodes.toLocaleString() + ' states in ' + s.ms + ' ms.');
+        renderResults(out.results);
+      } else if (out.status === 'impossible') {
+        showStatus('warning', 'Target Not Reachable', out.reason);
+        renderResults([]);
+      } else if (out.status === 'none') {
+        showStatus('warning', 'No Solution Exists',
+          'Every reachable position was checked and none satisfies the target. Check the painted stickers for parity or orientation conflicts.');
+        renderResults([]);
+      } else {
+        showStatus('warning', 'No Solution Within 12 Moves',
+          'The fixed 12-move search ended because it reached the memory budget or exhaustively checked its available depth. Try loosening the target with gray stickers.');
+        renderResults([]);
+      }
+    }
+
+    function runSolver() {
+      if (solverRunning) { cancelSolver(false); return; }
+
+      // 1. Validation checks
+      const startNonCenterWildcards = startState.filter((c, idx) => !FIXED_CENTERS[idx] && c === 'X').length;
+      const targetNonCenterWildcards = targetState.filter((c, idx) => !FIXED_CENTERS[idx] && c === 'X').length;
+
+      if (startNonCenterWildcards === 48 && targetNonCenterWildcards === 48) {
+        showStatus('error', 'Cubes Are Empty', 'Please paint some edge or corner stickers on the cubes to define your start and target states.');
+        return;
+      }
+
+      // Check if already matched
+      if (isPatternMatch(startState, targetState)) {
+        showStatus('success', 'Cube Already Solved!', 'Start state already satisfies the target requirements (0 moves needed).');
+        renderResults([[]]);
+        return;
+      }
+
+      // 2. Search (off the main thread when possible)
+      const selectedMode = document.querySelector('input[name="searchMode"]:checked').value;
+      const input = Object.assign({
+        start: startState.slice(),
+        target: targetState.slice(),
+        tr: ALL_MOVES.map(function (m) { return MOVE_TRANSFORMS[m]; }),
+        sig: STICKER_SIG,
+        moveNames: ALL_MOVES,
+        searchMode: selectedMode
+      }, SOLVER_LIMITS, {
+        maxDepth: SOLVER_LIMITS.maxDepth,
+        nodeCap: SOLVER_LIMITS.nodeCap,
+        maxResults: SOLVER_LIMITS.maxResults,
+        extraDepth: SOLVER_LIMITS.extraDepth
+      });
+
+      setSolverRunning(true);
+      showStatus('loading', 'Searching for Algorithms...', 'Preparing search...');
+      const token = ++solverToken;
+
+      function finish(out) {
+        if (token !== solverToken) return;
+        disposeSolverWorker();
+        setSolverRunning(false);
+        handleSolverResult(out);
+      }
+      function runInline() {
+        // Fallback: same solver on the main thread (UI is blocked while it runs)
+        setTimeout(function () {
+          if (token !== solverToken) return;
+          finish(solveRubik(input, null));
+        }, 30);
+      }
+
+      try {
+        const src = 'const solveRubik = ' + solveRubik.toString() + ';\n' +
+          'self.onmessage = function (e) {\n' +
+          '  var out = solveRubik(e.data, function (p) { self.postMessage({ type: "progress", p: p }); });\n' +
+          '  self.postMessage({ type: "done", out: out });\n' +
+          '};';
+        solverUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        solverWorker = new Worker(solverUrl);
+        solverWorker.onmessage = function (e) {
+          if (token !== solverToken) return;
+          if (e.data.type === 'progress') {
+            const p = e.data.p;
+            showStatus('loading', 'Searching for Algorithms...',
+              'Checked all sequences up to ' + p.depth + ' moves (' + p.nodes.toLocaleString() + ' states).');
+          } else {
+            finish(e.data.out);
+          }
+        };
+        solverWorker.onerror = function () {
+          if (token !== solverToken) return;
+          disposeSolverWorker();
+          runInline();
+        };
+        solverWorker.postMessage(input);
+      } catch (err) {
+        disposeSolverWorker();
+        runInline();
+      }
+    }
+
+
+    /* -------------------------------------------------------------------------- */
+    /*  6. UI DISPLAY & PLAYBACK VISUALIZER                                       */
+    /* -------------------------------------------------------------------------- */
+    function showStatus(type, title, desc) {
+      const box = document.getElementById('statusBox');
+      const icon = document.getElementById('statusIcon');
+      const titleEl = document.getElementById('statusTitle');
+      const descEl = document.getElementById('statusDesc');
+
+      box.classList.remove('hidden', 'bg-emerald-950/40', 'border-emerald-800/60', 'bg-amber-950/40', 'border-amber-800/60', 'bg-red-950/40', 'border-red-800/60', 'bg-indigo-950/40', 'border-indigo-800/60');
+
+      if (type === 'success') {
+        box.classList.add('bg-emerald-950/40', 'border-emerald-800/60');
+        icon.className = 'fa-solid fa-circle-check text-emerald-400';
+      } else if (type === 'warning') {
+        box.classList.add('bg-amber-950/40', 'border-amber-800/60');
+        icon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+      } else if (type === 'error') {
+        box.classList.add('bg-red-950/40', 'border-red-800/60');
+        icon.className = 'fa-solid fa-circle-xmark text-red-400';
+      } else {
+        box.classList.add('bg-indigo-950/40', 'border-indigo-800/60');
+        icon.className = 'fa-solid fa-spinner fa-spin text-indigo-400';
+      }
+
+      titleEl.textContent = title;
+      descEl.textContent = desc;
+    }
+
+    function hideStatus() {
+      document.getElementById('statusBox').classList.add('hidden');
+    }
+
+    function renderResults(algorithms) {
+      const algoList = document.getElementById('algoList');
+      const countBadge = document.getElementById('algoCountBadge');
+      algoList.innerHTML = '';
+
+      countBadge.textContent = `${algorithms.length} found`;
+
+      if (algorithms.length === 0) {
+        algoList.innerHTML = `
+          <div class="result-empty">
+            <i class="fa-solid fa-ban text-2xl mb-2 block opacity-40"></i>
+            No algorithms match the given configuration.
+          </div>`;
+        resetVisualizer();
+        return;
+      }
+
+      algorithms.forEach((algo, index) => {
+        const moveStr = algo.length === 0 ? "Already Solved (0 Moves)" : algo.join(' ');
+        const card = document.createElement('div');
+        card.className = `algo-card ${index === 0 ? 'primary' : ''}`;
+
+        card.innerHTML = `
+          <div class="algo-card-head">
+            <span class="algo-option">Option ${index + 1}</span>
+            <span class="move-count">${algo.length} moves</span>
+          </div>
+          <div class="move-string">${moveStr}</div>
+          <div class="algo-card-actions">
+            <button type="button" class="copy-btn">Copy</button>
+            <button type="button" class="viz-btn">Visualize</button>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          selectAlgoForPlayback(algo);
+        });
+
+        card.querySelector('.copy-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          copyToClipboard(moveStr);
+        });
+        card.querySelector('.viz-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectAlgoForPlayback(algo);
+        });
+
+        algoList.appendChild(card);
+      });
+
+      // Automatically select first algorithm for visualizer
+      if (algorithms.length > 0) {
+        selectAlgoForPlayback(algorithms[0]);
+      }
+    }
+
+    function resetResults() {
+      document.getElementById('algoList').innerHTML = `
+        <div class="result-empty">
+          <i class="fa-solid fa-puzzle-piece text-3xl mb-3 block opacity-40"></i>
+          Set up the Start and Target states, then click <br/><strong class="text-slate-400">"Generate Algorithms"</strong>.
+        </div>`;
+      document.getElementById('algoCountBadge').textContent = '0 found';
+      resetVisualizer();
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*  7. PLAYBACK VISUALIZER LOGIC                                              */
+    /* -------------------------------------------------------------------------- */
+    function selectAlgoForPlayback(algo) {
+      activeAlgorithm = algo;
+      currentStep = 0;
+      visualizerState = [...startState];
+
+      document.getElementById('playbackSection').classList.remove('hidden');
+      updatePlaybackUI();
+    }
+
+    function resetVisualizer() {
+      cancelSolver(true);
+      stopAutoPlay();
+      activeAlgorithm = [];
+      currentStep = 0;
+      document.getElementById('playbackSection').classList.add('hidden');
+      renderNet('startNet', startState);
+    }
+
+    function updatePlaybackUI() {
+      const stepCounter = document.getElementById('stepCounter');
+      const currentMoveDisplay = document.getElementById('currentMoveDisplay');
+      const sequencePreview = document.getElementById('currentSequencePreview');
+
+      stepCounter.textContent = `Step ${currentStep} / ${activeAlgorithm.length}`;
+
+      if (currentStep === 0) {
+        currentMoveDisplay.textContent = 'START';
+      } else {
+        currentMoveDisplay.textContent = activeAlgorithm[currentStep - 1];
+      }
+
+      // Format path highlighting current move
+      const previewText = activeAlgorithm.map((m, idx) => {
+        return idx === currentStep - 1 ? `[${m}]` : m;
+      }).join(' ');
+
+      sequencePreview.textContent = previewText || '(0 Moves)';
+
+      // Calculate state at current step
+      let state = [...startState];
+      for (let i = 0; i < currentStep; i++) {
+        state = applyMoveToState(state, activeAlgorithm[i]);
+      }
+      visualizerState = state;
+      renderNet('startNet', visualizerState);
+    }
+
+    function stepPlayback(action) {
+      stopAutoPlay();
+      if (activeAlgorithm.length === 0) return;
+
+      if (action === 'first') currentStep = 0;
+      else if (action === 'prev') currentStep = Math.max(0, currentStep - 1);
+      else if (action === 'next') currentStep = Math.min(activeAlgorithm.length, currentStep + 1);
+      else if (action === 'last') currentStep = activeAlgorithm.length;
+
+      updatePlaybackUI();
+    }
+
+    function toggleAutoPlay() {
+      if (autoPlayTimer) {
+        stopAutoPlay();
+      } else {
+        if (currentStep >= activeAlgorithm.length) currentStep = 0;
+        document.getElementById('playPauseBtn').innerHTML = `<i class="fa-solid fa-pause"></i> Pause`;
+        autoPlayTimer = setInterval(() => {
+          if (currentStep < activeAlgorithm.length) {
+            currentStep++;
+            updatePlaybackUI();
+          } else {
+            stopAutoPlay();
+          }
+        }, 800);
+      }
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayTimer) {
+        clearInterval(autoPlayTimer);
+        autoPlayTimer = null;
+        document.getElementById('playPauseBtn').innerHTML = `<i class="fa-solid fa-play"></i> Play`;
+      }
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*  8. UTILITIES                                                              */
+    /* -------------------------------------------------------------------------- */
+    function copyToClipboard(text) {
+      const dummy = document.createElement("textarea");
+      document.body.appendChild(dummy);
+      dummy.value = text;
+      dummy.select();
+      document.execCommand("copy");
+      document.body.removeChild(dummy);
+
+      // Show toast
+      const toast = document.getElementById('toast');
+      toast.classList.remove('hidden');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = `Copied: "${text}"`;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 2500);
+    }
+
+    // Initialize initial views on window load
+    window.onload = function() {
+      buildNet('startNet', startState);
+      buildNet('targetNet', targetState, true);
+    };
+</script>
+{% endblock %}
